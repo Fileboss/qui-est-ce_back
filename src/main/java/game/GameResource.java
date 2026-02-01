@@ -30,6 +30,14 @@ public class GameResource {
     }
 
     @POST
+    @Path("/reset")
+    @Produces(MediaType.APPLICATION_JSON)
+    public GameStatusResponse resetGame() {
+        gameEngine.reset();
+        return new GameStatusResponse(SUCCESS, null, null);
+    }
+
+    @POST
     @Path("/player1/join")
     @Produces(MediaType.APPLICATION_JSON)
     public CardDto player1JoinGame() {

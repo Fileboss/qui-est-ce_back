@@ -19,7 +19,7 @@ public class GameEngine {
         PREPARING,
         STARTED,
         PLAYER_1_WINS,
-        PLAYER_2_WINS;
+        PLAYER_2_WINS
     }
 
     @Getter
@@ -34,6 +34,9 @@ public class GameEngine {
     public void create(List<CardDto> cardDtos) {
         if (gameState != GameState.NOT_STARTED) {
             throw new IllegalStateException("Can only create a game if not started");
+        }
+        if (cardDtos.isEmpty()) {
+            throw new IllegalStateException("A game cannot be started with an empty card pack");
         }
         this.cardDtos = cardDtos;
         this.player1CardDtoToGuess = this.cardDtos.get(random.nextInt(cardDtos.size()));
@@ -82,6 +85,16 @@ public class GameEngine {
             return true;
         }
         return false;
+    }
+
+    public void reset() {
+        if (!(gameState == GameState.PLAYER_1_WINS || gameState == GameState.PLAYER_2_WINS)) {
+            throw new IllegalStateException("Can only reset a game if it is over");
+        }
+        cardDtos = null;
+        player1CardDtoToGuess = null;
+        player2CardDtoToGuess = null;
+        gameState = GameState.NOT_STARTED;
     }
 
 }
