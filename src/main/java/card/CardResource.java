@@ -34,38 +34,41 @@ public class CardResource {
         public FileUpload image;
     }
 
+
+    /**
+     * API to create a card.
+     * @param form the Form Data containing Card information and image data.
+     * @return a CardDto corresponding to the created card.
+     * @throws IOException if an error occurs while reading image data.
+     */
     @PUT
     @Path("/create")
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
     @Transactional
     public CardDto createCard(CardUploadForm form) throws IOException {
-// 1. Validation basique
         if (form.image == null || form.image.fileName() == null) {
             throw new BadRequestException("Une image est obligatoire");
         }
 
-        // 2. Upload de l'image vers MinIO
         byte[] fileBytes = Files.readAllBytes(form.image.filePath());
         String imageKey = imageService.uploadImage(fileBytes, form.image.contentType());
 
         long packIdAsLong = Long.parseLong(form.packId);
+        @SuppressWarnings("java:S3252") // Active Record pattern
         Pack packFound = Pack.findById(packIdAsLong);
 
         if (packFound == null) {
-            // C'est ici que tu bloques si l'ID n'existe pas !
             throw new NotFoundException("Le pack avec l'id " + form.packId + " n'existe pas.");
         }
 
-        // 3. Création et sauvegarde en Base (Panache)
         Card card = new Card();
         card.setName(form.name);
         card.setPack(packFound);
-        card.setImageUrl(imageService.getImageUrl(imageKey)); // On ne stocke que la clé (ex: "uuid-123"), pas l'URL complète
+        card.setImageUrl(imageService.getImageUrl(imageKey));
 
         cardService.createCard(card);
 
-        // 4. Retourne le DTO avec l'URL complète générée
         return new CardDto(
                 String.valueOf(card.id),
                 card.getName(),

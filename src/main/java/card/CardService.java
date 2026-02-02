@@ -5,11 +5,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
 
 @ApplicationScoped
-public class    CardService {
-
-    public static final String PACK_ID = "packId";
+public class CardService {
 
     public List<CardDto> getCardsFromPack(String packId) {
+        @SuppressWarnings("java:S3252") // Active Record pattern
         List<Card> cards = Card.list("pack.id", Long.parseLong(packId));
         return cards
                 .stream()
