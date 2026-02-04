@@ -1,0 +1,39 @@
+name: Deploy Swagger to Doc Repo
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Backend
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build and Generate OpenAPI
+        run: ./mvnw clean package -DskipTests -Dquarkus.package.type=jar
+
+      - name: Check file existence
+        run: ls -l target/generated/
+
+      - name: Push OpenAPI to Doc Repo
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+        with:
+          source-file: 'target/generated/openapi.yaml'
+          destination-repo: 'Fileboss/qui-est-ce_back_API'
+          destination-folder: '.'
+          user-email: 'bot@github.com'
+          user-name: 'Swagger Bot'
+          commit-message: 'Update Swagger OpenAPI spec from Backend'
+          target-branch: main
