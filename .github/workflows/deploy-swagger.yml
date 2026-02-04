@@ -30,10 +30,9 @@ jobs:
         env:
           API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
         with:
-          source-file: 'target/generated/openapi.yaml'
-          destination-repo: 'Fileboss/qui-est-ce_back_API'
-          destination-folder: '.'
-          user-email: 'bot@github.com'
-          user-name: 'Swagger Bot'
+          source-directory: 'target/generated/swagger'
+          destination-github-username: 'Fileboss'
+          destination-repository-name: 'qui-est-ce_back_API'
+          destination-folder: './swagger'
           commit-message: 'Update Swagger OpenAPI spec from Backend'
           target-branch: main
