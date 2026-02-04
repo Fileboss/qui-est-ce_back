@@ -33,6 +33,6 @@ jobs:
           source-directory: 'target/generated/swagger'
           destination-github-username: 'Fileboss'
           destination-repository-name: 'qui-est-ce_back_API'
-          destination-folder: './swagger'
+          target-directory: './swagger'
           commit-message: 'Update Swagger OpenAPI spec from Backend'
           target-branch: master
