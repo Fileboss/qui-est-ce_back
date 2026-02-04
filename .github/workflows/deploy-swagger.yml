@@ -35,4 +35,4 @@ jobs:
           destination-repository-name: 'qui-est-ce_back_API'
           destination-folder: './swagger'
           commit-message: 'Update Swagger OpenAPI spec from Backend'
-          target-branch: main
+          target-branch: master
