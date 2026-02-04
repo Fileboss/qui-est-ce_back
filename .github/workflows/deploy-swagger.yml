@@ -20,7 +20,7 @@ jobs:
           cache: maven
 
       - name: Build and Generate OpenAPI
-        run: ./mvnw clean package -DskipTests -Dquarkus.package.type=jar
+        run: ./mvnw clean package -DskipTests
 
       - name: Check file existence
         run: ls -l target/generated/
