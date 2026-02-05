@@ -31,7 +31,7 @@ public class GameEngine {
 
     private CardDto player2CardDtoToGuess;
 
-    public void create(List<CardDto> cardDtos) {
+    public synchronized void create(List<CardDto> cardDtos) {
         if (gameState != GameState.NOT_STARTED) {
             throw new IllegalStateException("Can only create a game if not started");
         }
@@ -58,14 +58,14 @@ public class GameEngine {
         return player2CardDtoToGuess;
     }
 
-    public void start() {
+    public synchronized void start() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared");
         }
         gameState = GameState.STARTED;
     }
 
-    public boolean player1Guess(String cardId) {
+    public synchronized boolean player1Guess(String cardId) {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
         }
@@ -76,7 +76,7 @@ public class GameEngine {
         return false;
     }
 
-    public boolean player2Guess(String cardId) {
+    public synchronized boolean player2Guess(String cardId) {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
         }
@@ -87,7 +87,7 @@ public class GameEngine {
         return false;
     }
 
-    public void reset() {
+    public synchronized void reset() {
         if (!(gameState == GameState.PLAYER_1_WINS || gameState == GameState.PLAYER_2_WINS)) {
             throw new IllegalStateException("Can only reset a game if it is over");
         }
