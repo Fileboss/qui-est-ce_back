@@ -1,6 +1,6 @@
 package game;
 
-import card.CardDto;
+import card.CardDTO;
 import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -25,37 +25,37 @@ public class GameEngine {
     @Getter
     private GameState gameState = GameState.NOT_STARTED;
     @Getter
-    private List<CardDto> cardDtos;
+    private List<CardDTO> cardDTOs;
 
-    private CardDto player1CardDtoToGuess;
+    private CardDTO player1CardDTOToGuess;
 
-    private CardDto player2CardDtoToGuess;
+    private CardDTO player2CardDTOToGuess;
 
-    public synchronized void create(List<CardDto> cardDtos) {
+    public synchronized void create(List<CardDTO> cardDTOs) {
         if (gameState != GameState.NOT_STARTED) {
             throw new IllegalStateException("Can only create a game if not started");
         }
-        if (cardDtos.isEmpty()) {
+        if (cardDTOs.isEmpty()) {
             throw new IllegalStateException("A game cannot be started with an empty card pack");
         }
-        this.cardDtos = cardDtos;
-        this.player1CardDtoToGuess = this.cardDtos.get(random.nextInt(cardDtos.size()));
-        this.player2CardDtoToGuess = this.cardDtos.get(random.nextInt(cardDtos.size()));
+        this.cardDTOs = cardDTOs;
+        this.player1CardDTOToGuess = this.cardDTOs.get(random.nextInt(cardDTOs.size()));
+        this.player2CardDTOToGuess = this.cardDTOs.get(random.nextInt(cardDTOs.size()));
         this.gameState = GameState.PREPARING;
     }
 
-    public CardDto getPlayer1CardDtoToGuess() {
+    public CardDTO getPlayer1CardDTOToGuess() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared lol");
         }
-        return player1CardDtoToGuess;
+        return player1CardDTOToGuess;
     }
 
-    public CardDto getPlayer2CardDtoToGuess() {
+    public CardDTO getPlayer2CardDTOToGuess() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared");
         }
-        return player2CardDtoToGuess;
+        return player2CardDTOToGuess;
     }
 
     public synchronized void start() {
@@ -69,7 +69,7 @@ public class GameEngine {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
         }
-        if (cardId.equals(player1CardDtoToGuess.id())) {
+        if (cardId.equals(player1CardDTOToGuess.id())) {
             gameState = GameState.PLAYER_1_WINS;
             return true;
         }
@@ -80,7 +80,7 @@ public class GameEngine {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
         }
-        if (cardId.equals(player2CardDtoToGuess.id())) {
+        if (cardId.equals(player2CardDTOToGuess.id())) {
             gameState = GameState.PLAYER_2_WINS;
             return true;
         }
@@ -91,9 +91,9 @@ public class GameEngine {
         if (!(gameState == GameState.PLAYER_1_WINS || gameState == GameState.PLAYER_2_WINS)) {
             throw new IllegalStateException("Can only reset a game if it is over");
         }
-        cardDtos = null;
-        player1CardDtoToGuess = null;
-        player2CardDtoToGuess = null;
+        cardDTOs = null;
+        player1CardDTOToGuess = null;
+        player2CardDTOToGuess = null;
         gameState = GameState.NOT_STARTED;
     }
 

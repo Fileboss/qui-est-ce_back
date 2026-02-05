@@ -1,6 +1,6 @@
 package pack;
 
-import card.CardDto;
+import card.CardDTO;
 import card.CardService;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
@@ -24,7 +24,7 @@ public class PackResource {
     @GET
     @Path("/{id}/cards")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<CardDto> getCardsByPack(@PathParam("id") String packId) {
+    public List<CardDTO> getCardsByPack(@PathParam("id") String packId) {
         return cardService.getCardsFromPack(packId);
     }
 

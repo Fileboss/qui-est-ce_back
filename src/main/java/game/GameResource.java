@@ -1,6 +1,6 @@
 package game;
 
-import card.CardDto;
+import card.CardDTO;
 import card.CardService;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -24,8 +24,8 @@ public class GameResource {
     @Path("/create")
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse createGame(@QueryParam("packId") String packId) {
-        List<CardDto> cardDtos = cardService.getCardsFromPack(packId);
-        gameEngine.create(cardDtos);
+        List<CardDTO> cardDTOs = cardService.getCardsFromPack(packId);
+        gameEngine.create(cardDTOs);
         return new GameStatusResponse(SUCCESS, null, null);
     }
 
@@ -40,15 +40,15 @@ public class GameResource {
     @POST
     @Path("/player1/join")
     @Produces(MediaType.APPLICATION_JSON)
-    public CardDto player1JoinGame() {
-        return gameEngine.getPlayer2CardDtoToGuess();
+    public CardDTO player1JoinGame() {
+        return gameEngine.getPlayer2CardDTOToGuess();
     }
 
     @POST
     @Path("/player2/join")
     @Produces(MediaType.APPLICATION_JSON)
-    public CardDto player2JoinGame() {
-        return gameEngine.getPlayer1CardDtoToGuess();
+    public CardDTO player2JoinGame() {
+        return gameEngine.getPlayer1CardDTOToGuess();
     }
 
     @POST

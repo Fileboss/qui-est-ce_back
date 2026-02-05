@@ -46,7 +46,7 @@ public class CardResource {
     @Consumes(MediaType.MULTIPART_FORM_DATA)
     @Produces(MediaType.APPLICATION_JSON)
     @Transactional
-    public CardDto createCard(CardUploadForm form) throws IOException {
+    public CardDTO createCard(CardUploadForm form) throws IOException {
         if (form.image == null || form.image.fileName() == null) {
             throw new BadRequestException("Une image est obligatoire");
         }
@@ -69,7 +69,7 @@ public class CardResource {
 
         cardService.createCard(card);
 
-        return new CardDto(
+        return new CardDTO(
                 String.valueOf(card.id),
                 card.getName(),
                 imageService.getImageUrl(imageKey),

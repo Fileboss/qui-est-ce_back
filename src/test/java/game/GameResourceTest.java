@@ -1,6 +1,6 @@
 package game;
 
-import card.CardDto;
+import card.CardDTO;
 import card.CardService;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
@@ -22,18 +22,18 @@ class GameResourceTest {
     @InjectMock
     CardService cardService;
 
-    private CardDto fakeCardDto;
+    private CardDTO fakeCardDTO;
 
     @BeforeEach
     void setUp() {
-        fakeCardDto = new CardDto("1", "Philippe", "http://fake.url/img.png", "1");
+        fakeCardDTO = new CardDTO("1", "Philippe", "http://fake.url/img.png", "1");
     }
 
     @Test
     void testCreateGame() {
         // Arrange
         String packId = "1";
-        Mockito.when(cardService.getCardsFromPack(packId)).thenReturn(List.of(fakeCardDto));
+        Mockito.when(cardService.getCardsFromPack(packId)).thenReturn(List.of(fakeCardDTO));
 
         // Act and assert
         given()
@@ -50,7 +50,7 @@ class GameResourceTest {
     @Test
     void testPlayer1JoinGame() {
         // Arrange
-        Mockito.when(gameEngine.getPlayer2CardDtoToGuess()).thenReturn(fakeCardDto);
+        Mockito.when(gameEngine.getPlayer2CardDTOToGuess()).thenReturn(fakeCardDTO);
 
         // Act and assert
         given()
@@ -65,7 +65,7 @@ class GameResourceTest {
     @Test
     void testPlayer2JoinGame() {
         // Arrange
-        Mockito.when(gameEngine.getPlayer1CardDtoToGuess()).thenReturn(fakeCardDto);
+        Mockito.when(gameEngine.getPlayer1CardDTOToGuess()).thenReturn(fakeCardDTO);
 
         // Act and assert
         given()
