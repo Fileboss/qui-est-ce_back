@@ -4,9 +4,11 @@ import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
 
+/** Service layer for card persistence operations. */
 @ApplicationScoped
 public class CardService {
 
+    /** Returns all cards belonging to the given pack, mapped to DTOs. */
     public List<CardDTO> getCardsFromPack(String packId) {
         @SuppressWarnings("java:S3252") // Active Record pattern
         List<Card> cards = Card.list("pack.id", Long.parseLong(packId));
@@ -16,6 +18,7 @@ public class CardService {
                 .toList();
     }
 
+    /** Persists a new card to the database. Must be called within a transaction. */
     public void createCard(Card card) {
         card.persist();
     }

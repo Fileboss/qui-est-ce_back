@@ -39,6 +39,9 @@ nb-configuration.xml
 # Local environment
 .env
 
+# Claude Code local settings (personal overrides, not for sharing)
+.claude/settings.local.json
+
 # Plugin directory
 /.quarkus/cli/plugins/
 # TLS Certificates

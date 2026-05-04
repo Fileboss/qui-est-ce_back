@@ -4,6 +4,7 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import jakarta.json.Json;
 
+/** Maps {@link IllegalStateException} (invalid game state transitions) to HTTP 400. */
 @Provider
 public class IllegalStateExceptionMapper implements ExceptionMapper<IllegalStateException> {
     @Override

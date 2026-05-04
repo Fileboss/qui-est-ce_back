@@ -13,6 +13,7 @@ import pack.Pack;
 import java.io.IOException;
 import java.nio.file.Files;
 
+/** REST endpoints for card management. */
 @RequiredArgsConstructor
 @Path("/card")
 public class CardResource {
@@ -20,6 +21,7 @@ public class CardResource {
     private final CardService cardService;
     private final ImageService imageService;
 
+    /** Multipart form used to upload a card with its image. */
     public static class CardUploadForm {
         @RestForm("name")
         @PartType(MediaType.TEXT_PLAIN)

@@ -9,18 +9,21 @@ import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+/** REST endpoints for pack and card listing. */
 @RequiredArgsConstructor
 @Path("/pack")
 public class PackResource {
     private final PackService packService;
     private final CardService cardService;
 
+    /** Returns all available packs. */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
     public List<PackDto> getAll() {
         return packService.getAllPacks();
     }
 
+    /** Returns all cards belonging to the given pack. */
     @GET
     @Path("/{id}/cards")
     @Produces(MediaType.APPLICATION_JSON)
@@ -28,6 +31,7 @@ public class PackResource {
         return cardService.getCardsFromPack(packId);
     }
 
+    /** Creates a new pack with the given name. */
     @Path("/create")
     @PUT
     @Transactional

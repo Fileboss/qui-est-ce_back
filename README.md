@@ -91,6 +91,8 @@ L'interface de développement de Quarkus (Dev UI) est également disponible via 
 
 ### ☕ Java 21
 - Utilisation des **Records** pour une modélisation concise et immuable des données.
+- **Sérialisation JSON :** Mapping automatique entre le format JSON et les DTO (implémentés via les Records Java).
+
 
 ### 🚀 Quarkus Framework
 Quarkus est un framework Java "Cloud Native" (Subatomic & Supersonic Java) pensé pour les architectures modernes et les conteneurs. Ce projet m'a permis d'en explorer les fonctionnalités clés :
@@ -99,7 +101,6 @@ Quarkus est un framework Java "Cloud Native" (Subatomic & Supersonic Java) pens�
 - **Live Coding (Hot Reload) :** Le serveur redémarre instantanément à chaque modification du code, permettant de tester les nouvelles implémentations en temps réel sans perte de contexte.
 - **Dev Services :** Création automatique et transparente d'une base de données PostgreSQL et d'un serveur S3 (via Testcontainers) au démarrage du mode dev, sans avoir besoin de fournir de configuration complexe ("Zéro config").
 - **Hibernate ORM avec Panache :** Utilisation d'une surcouche facilitant grandement l'accès aux données (implémentation du pattern Active Record / Repository).
-- **Sérialisation JSON :** Mapping automatique entre le format JSON et les DTO (implémentés via les Records Java).
 - **Conteneurisation native :** Possibilité de construire une image Docker optimisée directement via les commandes Quarkus.
 - **QuarkusTest & REST-assured :** Mise en place de tests d'intégration fluides et lisibles pour valider les endpoints de l'API.
 

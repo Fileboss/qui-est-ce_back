@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import pack.Pack;
 
+/** JPA entity representing a card belonging to a pack. Uses the Panache Active Record pattern. */
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity

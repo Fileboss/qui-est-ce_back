@@ -1,15 +1,12 @@
 package game;
 
 import card.CardDTO;
-import jakarta.enterprise.context.ApplicationScoped;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 
 import java.util.List;
 import java.util.Random;
 
-@NoArgsConstructor
-@ApplicationScoped
+/** Holds the state and logic of a single game instance. Thread-safe via synchronized methods. */
 public class GameEngine {
 
     private final Random random = new Random();
@@ -31,6 +28,7 @@ public class GameEngine {
 
     private CardDTO player2CardDTOToGuess;
 
+    /** Initializes the game with the given card pack and randomly assigns target cards to each player. */
     public synchronized void create(List<CardDTO> cardDTOs) {
         if (gameState != GameState.NOT_STARTED) {
             throw new IllegalStateException("Can only create a game if not started");
@@ -44,6 +42,7 @@ public class GameEngine {
         this.gameState = GameState.PREPARING;
     }
 
+    /** Returns the card player 1 must guess (i.e. the card assigned to player 2). Only callable in PREPARING state. */
     public CardDTO getPlayer1CardDTOToGuess() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared lol");
@@ -51,6 +50,7 @@ public class GameEngine {
         return player1CardDTOToGuess;
     }
 
+    /** Returns the card player 2 must guess (i.e. the card assigned to player 1). Only callable in PREPARING state. */
     public CardDTO getPlayer2CardDTOToGuess() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared");
@@ -58,6 +58,7 @@ public class GameEngine {
         return player2CardDTOToGuess;
     }
 
+    /** Transitions the game from PREPARING to STARTED. */
     public synchronized void start() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared");
@@ -65,6 +66,7 @@ public class GameEngine {
         gameState = GameState.STARTED;
     }
 
+    /** Evaluates player 1's guess. Returns true and transitions to PLAYER_1_WINS if correct. */
     public synchronized boolean player1Guess(String cardId) {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
@@ -76,6 +78,7 @@ public class GameEngine {
         return false;
     }
 
+    /** Evaluates player 2's guess. Returns true and transitions to PLAYER_2_WINS if correct. */
     public synchronized boolean player2Guess(String cardId) {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
@@ -87,6 +90,7 @@ public class GameEngine {
         return false;
     }
 
+    /** Resets the game to NOT_STARTED. Only callable once a player has won. */
     public synchronized void reset() {
         if (!(gameState == GameState.PLAYER_1_WINS || gameState == GameState.PLAYER_2_WINS)) {
             throw new IllegalStateException("Can only reset a game if it is over");

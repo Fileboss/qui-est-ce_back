@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/** JPA entity representing a named collection of cards. Uses the Panache Active Record pattern. */
 @Entity
 @AllArgsConstructor
 @NoArgsConstructor
