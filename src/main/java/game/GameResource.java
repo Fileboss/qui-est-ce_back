@@ -2,12 +2,7 @@ package game;
 
 import card.CardDTO;
 import card.CardService;
-import jakarta.ws.rs.DELETE;
-import jakarta.ws.rs.POST;
-import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
-import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +19,19 @@ public class GameResource {
     private final GameRegistry gameRegistry;
     private final CardService cardService;
 
+    @GET
+    @Produces(MediaType.APPLICATION_JSON)
+    public List<GameStatusResponse> getAll() {
+        return gameRegistry.findAll();
+    }
+
     /** Creates a new game from the given pack and returns its id. */
     @POST
     @Path("/create")
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse createGame(@QueryParam("packId") String packId) {
         List<CardDTO> cardDTOs = cardService.getCardsFromPack(packId);
-        String gameId = gameRegistry.createGame(cardDTOs);
-        return new GameStatusResponse(SUCCESS, gameId, null, null);
+        return gameRegistry.createGame(cardDTOs);
     }
 
     /** Deletes a game regardless of its current state. Idempotent. */

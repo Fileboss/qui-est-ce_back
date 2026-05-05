@@ -14,12 +14,17 @@ public class GameRegistry {
     private final ConcurrentHashMap<String, GameEngine> games = new ConcurrentHashMap<>();
 
     /** Creates a new game from the given card list, stores it, and returns its generated UUID. */
-    public String createGame(List<CardDTO> cards) {
+    public GameStatusResponse createGame(List<CardDTO> cards) {
         String id = UUID.randomUUID().toString();
         GameEngine engine = new GameEngine();
         engine.create(cards);
         games.put(id, engine);
-        return id;
+        return new GameStatusResponse(engine.getGameState().toString(), id, null, false);
+    }
+
+    public List<GameStatusResponse> findAll() {
+        return games.entrySet().stream().map(e ->
+                new GameStatusResponse(e.getValue().getGameState().toString(), e.getKey(), null, false)).toList();
     }
 
     /** Returns the game for the given id. Throws {@link IllegalArgumentException} if not found. */

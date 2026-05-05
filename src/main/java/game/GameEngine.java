@@ -11,7 +11,7 @@ public class GameEngine {
 
     private final Random random = new Random();
 
-    private enum GameState {
+    public enum GameState {
         NOT_STARTED,
         PREPARING,
         STARTED,
