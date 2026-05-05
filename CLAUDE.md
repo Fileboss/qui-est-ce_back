@@ -1,67 +1,54 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Commands
 
 ```bash
-# Dev mode with hot reload (requires Docker for Dev Services)
-./mvnw compile quarkus:dev
-
-# Run tests
-./mvnw test
-
-# Run a single test class
-./mvnw test -Dtest=GameResourceTest
-
-# Build (skips tests, generates OpenAPI spec under target/generated/swagger/)
-./mvnw clean package -DskipTests
-
-# Fast build via Quarkus plugin (skips Surefire, generates OpenAPI spec, ~2.5s)
-./mvnw quarkus:build -f pom.xml
-
-# Add a Quarkus extension
-./mvnw quarkus:add-extension -Dextensions="<extension-name>"
+./mvnw compile quarkus:dev          # Dev mode w/ hot reload (needs Docker)
+./mvnw test -f pom.xml              # All tests
+./mvnw test -Dtest=GameResourceTest # Single test class (default: run all)
+./mvnw clean package -DskipTests   # Full build → OpenAPI spec at target/generated/swagger/
+./mvnw quarkus:build -f pom.xml    # Fast build (~2.5s, same OpenAPI output)
+./mvnw quarkus:add-extension -Dextensions="<name>"
 ```
 
-Dev Services auto-provision a PostgreSQL database and a MinIO S3 bucket (`game-images`) via Testcontainers when running in dev or test mode — no manual infrastructure setup needed. Docker must be running.
+Dev Services auto-provision PostgreSQL and MinIO (`game-images` bucket) via Testcontainers in dev/test — no manual setup needed.
 
 ## Architecture
 
-The app is a REST API backend for a 2-player "Guess Who" card game. There is no auth and a single active game at a time.
+REST API backend for a 2-player "Guess Who" card game. No auth, single active game at a time.
 
 ### Packages
 
-- **`game`** — game logic only; no persistence. `GameEngine` owns the state machine; `GameResource` exposes the REST endpoints; `GameStatusResponse` is the response DTO.
-- **`pack`** and **`card`** — persistence layer. `Pack` and `Card` are Panache Active Record entities (they extend `PanacheEntity`). Services and resources follow the standard Quarkus pattern.
-- **`image`** — S3 wrapper. `ImageService` uploads raw bytes and returns either the S3 key or a presigned URL. The bucket name is read from `game.bucket.name` in `application.properties`.
-- **`util`** — `IllegalStateExceptionMapper` maps `IllegalStateException` to HTTP 400; all game state violations throw this.
+- **`game`** — game logic, no persistence. `GameEngine` = state machine; `GameResource` = REST endpoints; `GameStatusResponse` = response DTO.
+- **`pack`** / **`card`** — persistence. `Pack` and `Card` are Panache Active Record entities (`PanacheEntity`).
+- **`image`** — S3 wrapper. `ImageService` uploads bytes, returns S3 key or presigned URL. Bucket name from `game.bucket.name` in `application.properties`.
+- **`util`** — `IllegalStateExceptionMapper` maps `IllegalStateException` → HTTP 400.
 
-### Game state machine
+### State machine
 
-`GameEngine` is `@ApplicationScoped` (singleton). Its `GameState` enum drives all validation. Illegal transitions throw `IllegalStateException` which the mapper converts to 400.
+`GameEngine` is `@ApplicationScoped`. Illegal transitions throw `IllegalStateException` → 400.
 
 ```
-NOT_STARTED → PREPARING (create)
-PREPARING   → STARTED   (start)
-             ← player1/join + player2/join must happen before start
-STARTED     → PLAYER_1_WINS / PLAYER_2_WINS (playerX/guess with correct cardId)
-PLAYER_X_WINS → NOT_STARTED (reset)
+NOT_STARTED → PREPARING      (create)
+PREPARING   → STARTED        (start; both player1/join + player2/join must precede)
+STARTED     → PLAYER_X_WINS  (playerX/guess with correct cardId)
+PLAYER_X_WINS → NOT_STARTED  (reset)
 ```
 
-Key quirk: `player1/join` returns the card Player 1 must guess (i.e. Player 2's target), and vice versa. The cross-assignment is intentional.
+**Key quirk:** `player1/join` returns the card Player 1 must guess (Player 2's target), and vice versa — cross-assignment is intentional.
 
-All methods that mutate state are `synchronized`; the two `getPlayerXCardDTOToGuess` getters are not (they are read-only and only callable in `PREPARING`).
+State-mutating methods are `synchronized`; `getPlayerXCardDTOToGuess` getters are not (read-only, `PREPARING` only).
 
-### DTOs
+### DTOs & misc
 
-`CardDTO` is a Java Record (`id`, `name`, `imageUrl`, `packId`). `GameStatusResponse` is also a Record. Lombok is used on entities and services (`@RequiredArgsConstructor`, `@Getter`, etc.).
+`CardDTO` and `GameStatusResponse` are Java Records. Entities/services use Lombok (`@RequiredArgsConstructor`, `@Getter`, etc.).
 
 ### CI
 
-On push to `main`, GitHub Actions builds the project, generates the OpenAPI spec, and pushes it to the `Fileboss/qui-est-ce_back_API` repository (GitHub Pages). Tests are skipped in CI; the `API_TOKEN_GITHUB` secret is required.
+Push to `main` → GitHub Actions builds, generates OpenAPI spec, pushes to `Fileboss/qui-est-ce_back_API` (GitHub Pages). Tests skipped in CI; requires `API_TOKEN_GITHUB` secret.
 
-### Roadmap (known limitations)
+### Roadmap
+
 - Single game instance — no multi-session support.
-- No persistence of game state across restarts.
-- No authentication on any endpoint.
+- No game state persistence across restarts.
+- No authentication.
