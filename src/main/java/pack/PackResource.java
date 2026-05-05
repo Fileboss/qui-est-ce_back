@@ -2,9 +2,11 @@ package pack;
 
 import card.CardDTO;
 import card.CardService;
+import image.ImageService;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
@@ -15,6 +17,7 @@ import java.util.List;
 public class PackResource {
     private final PackService packService;
     private final CardService cardService;
+    private final ImageService imageService;
 
     /** Returns all available packs. */
     @GET
@@ -38,5 +41,21 @@ public class PackResource {
     @Produces(MediaType.APPLICATION_JSON)
     public PackDTO createPack(@QueryParam("packName") String packName) {
         return packService.createPack(packName);
+    }
+
+    /** Deletes a pack, all its cards, and their S3 images. Returns 404 if pack not found. */
+    @DELETE
+    @Path("/{id}")
+    @Transactional
+    public Response deletePack(@PathParam("id") long packId) {
+        @SuppressWarnings("java:S3252") // Active Record pattern
+        Pack pack = Pack.findById(packId);
+        if (pack == null) {
+            throw new NotFoundException("Le pack avec l'id " + packId + " n'existe pas.");
+        }
+        List<String> imageUrls = cardService.deleteCardsFromPack(packId);
+        pack.delete();
+        imageUrls.forEach(imageService::deleteImage);
+        return Response.noContent().build();
     }
 }

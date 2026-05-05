@@ -21,4 +21,5 @@ public class PackService {
         List<Pack> packList = Pack.listAll();
         return packList.stream().map(pack -> new PackDTO(String.valueOf(pack.id), pack.getName())).toList();
     }
+
 }

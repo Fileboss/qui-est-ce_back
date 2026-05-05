@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.util.UUID;
@@ -38,5 +39,14 @@ public class ImageService {
     /** Returns the public URL for the S3 object identified by the given key. */
     public String getImageUrl(String key) {
         return s3.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
+    }
+
+    /** Deletes the S3 object whose URL was returned by {@link #getImageUrl}. */
+    public void deleteImage(String imageUrl) {
+        String key = imageUrl.substring(imageUrl.lastIndexOf('/') + 1);
+        s3.deleteObject(DeleteObjectRequest.builder()
+                .bucket(bucketName)
+                .key(key)
+                .build());
     }
 }

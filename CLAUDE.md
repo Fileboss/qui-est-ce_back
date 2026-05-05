@@ -17,6 +17,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 # Build (skips tests, generates OpenAPI spec under target/generated/swagger/)
 ./mvnw clean package -DskipTests
 
+# Fast build via Quarkus plugin (skips Surefire, generates OpenAPI spec, ~2.5s)
+./mvnw quarkus:build -f pom.xml
+
 # Add a Quarkus extension
 ./mvnw quarkus:add-extension -Dextensions="<extension-name>"
 ```

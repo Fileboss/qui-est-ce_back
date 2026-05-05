@@ -4,6 +4,7 @@ import image.ImageService;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
 import org.jboss.resteasy.reactive.PartType;
 import org.jboss.resteasy.reactive.RestForm;
@@ -77,5 +78,16 @@ public class CardResource {
                 card.getImageUrl(),
                 String.valueOf(card.getPack().id)
         );
+    }
+
+    /** Deletes a card and its associated S3 image. Returns 404 if not found. */
+    @DELETE
+    @Path("/{id}")
+    @Transactional
+    public Response deleteCard(@PathParam("id") long cardId) {
+        String imageUrl = cardService.deleteCard(cardId)
+                .orElseThrow(() -> new NotFoundException("La carte avec l'id " + cardId + " n'existe pas."));
+        imageService.deleteImage(imageUrl);
+        return Response.noContent().build();
     }
 }
