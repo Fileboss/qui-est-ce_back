@@ -123,6 +123,47 @@ Quarkus permet d'ajouter très facilement de nouvelles dépendances sans modifie
 
 ---
 
+## 🔌 Mises à jour en temps réel (WebSocket)
+
+Deux endpoints WebSocket permettent aux clients de recevoir les changements d'état sans polling :
+
+| Endpoint | Rôle |
+|----------|------|
+| `ws://localhost:8080/ws/game/{gameId}` | Suivi d'une partie : reçoit chaque transition d'état et résultat de devinette |
+| `ws://localhost:8080/ws/games` | Lobby : reçoit les créations et suppressions de parties |
+
+### Format du message
+
+```json
+{
+  "gameId": "550e8400-e29b-41d4-a716-446655440000",
+  "type": "STATE_CHANGE",
+  "gameState": "STARTED",
+  "correct": null
+}
+```
+
+| Champ | Description |
+|-------|-------------|
+| `type` | `GAME_CREATED` · `STATE_CHANGE` · `DELETED` |
+| `gameState` | Nouvel état (`PREPARING`, `STARTED`, `PLAYER_1_WINS`, …). Absent si `DELETED`. |
+| `correct` | Présent uniquement après une devinette (`true` / `false`). |
+
+### Exemple de connexion (wscat)
+
+```bash
+# Installer wscat
+npm install -g wscat
+
+# Se connecter au lobby
+wscat -c ws://localhost:8080/ws/games
+
+# Se connecter à une partie spécifique
+wscat -c ws://localhost:8080/ws/game/<gameId>
+```
+
+---
+
 ## ⚙️ Intégration Continue (CI/CD)
 
 Mise en place d'un workflow **GitHub Actions** simple permettant de garantir la qualité et la documentation du code à chaque push :

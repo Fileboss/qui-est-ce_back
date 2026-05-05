@@ -72,7 +72,7 @@ public class GameResource {
     @Path("/{gameId}/start")
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse startGame(@PathParam("gameId") String gameId) {
-        gameRegistry.getGame(gameId).start();
+        gameRegistry.startGame(gameId);
         return new GameStatusResponse(SUCCESS, null);
     }
 
@@ -81,7 +81,7 @@ public class GameResource {
     @Path("/{gameId}/player1/guess")
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse player1Guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
-        boolean isCorrectAnswer = gameRegistry.getGame(gameId).player1Guess(cardId);
+        boolean isCorrectAnswer = gameRegistry.player1Guess(gameId, cardId);
         return new GameStatusResponse(SUCCESS, isCorrectAnswer);
     }
 
@@ -90,7 +90,7 @@ public class GameResource {
     @Path("/{gameId}/player2/guess")
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse player2Guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
-        boolean isCorrectAnswer = gameRegistry.getGame(gameId).player2Guess(cardId);
+        boolean isCorrectAnswer = gameRegistry.player2Guess(gameId, cardId);
         return new GameStatusResponse(SUCCESS, isCorrectAnswer);
     }
 }
