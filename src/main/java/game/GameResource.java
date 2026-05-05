@@ -21,17 +21,17 @@ public class GameResource {
 
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<GameStatusResponse> getAll() {
+    public List<GameDTO> getAll() {
         return gameRegistry.findAll();
     }
 
-    /** Creates a new game from the given pack and returns its id. */
+    /** Creates a new game from the given pack and returns its id and card pack. */
     @POST
     @Path("/create")
     @Produces(MediaType.APPLICATION_JSON)
-    public GameStatusResponse createGame(@QueryParam("packId") String packId) {
-        List<CardDTO> cardDTOs = cardService.getCardsFromPack(packId);
-        return gameRegistry.createGame(cardDTOs);
+    public GameDTO createGame(@QueryParam("packId") String packId) {
+        List<CardDTO> cards = cardService.getCardsFromPack(packId);
+        return gameRegistry.createGame(cards);
     }
 
     /** Deletes a game regardless of its current state. Idempotent. */
@@ -48,7 +48,7 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse resetGame(@PathParam("gameId") String gameId) {
         gameRegistry.resetGame(gameId);
-        return new GameStatusResponse(SUCCESS, null, null, null);
+        return new GameStatusResponse(SUCCESS, null);
     }
 
     /** Returns the card player 1 must guess. Must be called before start. */
@@ -73,7 +73,7 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse startGame(@PathParam("gameId") String gameId) {
         gameRegistry.getGame(gameId).start();
-        return new GameStatusResponse(SUCCESS, null, null, null);
+        return new GameStatusResponse(SUCCESS, null);
     }
 
     /** Submits player 1's guess. Returns whether the guess was correct. */
@@ -82,7 +82,7 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse player1Guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
         boolean isCorrectAnswer = gameRegistry.getGame(gameId).player1Guess(cardId);
-        return new GameStatusResponse(SUCCESS, null, null, isCorrectAnswer);
+        return new GameStatusResponse(SUCCESS, isCorrectAnswer);
     }
 
     /** Submits player 2's guess. Returns whether the guess was correct. */
@@ -91,6 +91,6 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     public GameStatusResponse player2Guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
         boolean isCorrectAnswer = gameRegistry.getGame(gameId).player2Guess(cardId);
-        return new GameStatusResponse(SUCCESS, null, null, isCorrectAnswer);
+        return new GameStatusResponse(SUCCESS, isCorrectAnswer);
     }
 }

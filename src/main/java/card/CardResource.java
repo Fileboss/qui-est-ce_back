@@ -74,7 +74,7 @@ public class CardResource {
         return new CardDTO(
                 String.valueOf(card.id),
                 card.getName(),
-                imageService.getImageUrl(imageKey),
+                card.getImageUrl(),
                 String.valueOf(card.getPack().id)
         );
     }

@@ -19,7 +19,7 @@ public class PackResource {
     /** Returns all available packs. */
     @GET
     @Produces(MediaType.APPLICATION_JSON)
-    public List<PackDto> getAll() {
+    public List<PackDTO> getAll() {
         return packService.getAllPacks();
     }
 
@@ -36,7 +36,7 @@ public class PackResource {
     @PUT
     @Transactional
     @Produces(MediaType.APPLICATION_JSON)
-    public PackDto createPack(@QueryParam("packName") String packName) {
+    public PackDTO createPack(@QueryParam("packName") String packName) {
         return packService.createPack(packName);
     }
 }

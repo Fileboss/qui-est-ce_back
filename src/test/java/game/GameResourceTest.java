@@ -35,7 +35,7 @@ class GameResourceTest {
     void testCreateGame() {
         String packId = "1";
         Mockito.when(cardService.getCardsFromPack(packId)).thenReturn(List.of(fakeCardDTO));
-        Mockito.when(gameRegistry.createGame(Mockito.anyList())).thenReturn(FAKE_GAME_ID);
+        Mockito.when(gameRegistry.createGame(Mockito.anyList())).thenReturn(new GameDTO("1", GameEngine.GameState.NOT_STARTED.toString(), List.of()));
 
         given()
             .queryParam("packId", packId)
