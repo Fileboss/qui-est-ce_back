@@ -43,7 +43,7 @@ class GameResourceTest {
             .post("/game/create")
         .then()
             .statusCode(200)
-            .body("status", is("Success"))
+            .body("gameState", is("NOT_STARTED"))
             .body("gameId", notNullValue());
     }
 

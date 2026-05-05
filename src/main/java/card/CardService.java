@@ -1,6 +1,5 @@
 package card;
 
-import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.enterprise.context.ApplicationScoped;
 
 import java.util.List;
@@ -48,7 +47,7 @@ public class CardService {
         @SuppressWarnings("java:S3252") // Active Record pattern
         List<Card> cards = Card.list(PACK_ID, packId);
         List<String> imageUrls = cards.stream().map(Card::getImageUrl).toList();
-        PanacheEntityBase.delete(PACK_ID, packId);
+        cards.forEach(Card::delete);
         return imageUrls;
     }
 
