@@ -6,6 +6,7 @@ import jakarta.enterprise.event.Event;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -42,6 +43,11 @@ public class GameRegistry {
             throw new IllegalArgumentException("Game not found: " + gameId);
         }
         return engine;
+    }
+
+    /** Non-throwing lookup, for callers that want to handle the "not found" case themselves. */
+    public Optional<GameEngine> findGame(String gameId) {
+        return Optional.ofNullable(games.get(gameId));
     }
 
     /** Removes the game with the given id. No-op if the id does not exist. */

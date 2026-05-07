@@ -2,12 +2,14 @@ package game;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.security.Authenticated;
 import io.quarkus.websockets.next.OnOpen;
 import io.quarkus.websockets.next.WebSocket;
 import lombok.RequiredArgsConstructor;
 import util.JsonSerializationException;
 
 @WebSocket(path = "/ws/games")
+@Authenticated
 @RequiredArgsConstructor
 public class GamesWebSocket {
 

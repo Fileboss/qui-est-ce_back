@@ -1,6 +1,7 @@
 package card;
 
 import image.ImageService;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -17,6 +18,7 @@ import java.nio.file.Files;
 /** REST endpoints for card management. */
 @RequiredArgsConstructor
 @Path("/card")
+@RolesAllowed("admin")
 public class CardResource {
 
     private final CardService cardService;

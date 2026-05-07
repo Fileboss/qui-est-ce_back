@@ -10,7 +10,7 @@ Ce projet contient le code d'une application Java Backend permettant de jouer au
 
 Conçu dans un but d'apprentissage et de montée en compétences, l'objectif principal est de fournir une implémentation fonctionnelle simple tout en explorant les capacités du framework **Quarkus**.
 
-*Note : L'implémentation actuelle gère une seule instance de jeu à la fois de manière simplifiée (sans authentification ni sécurisation des API d'administration). Ces fonctionnalités sont prévues dans les prochaines itérations (voir la roadmap).*
+*Note : L'implémentation actuelle gère une seule instance de jeu à la fois.*
 
 --- 
 
@@ -108,6 +108,8 @@ Quarkus est un framework Java "Cloud Native" (Subatomic & Supersonic Java) pens�
 * **Données :** `quarkus-hibernate-orm-panache`, `quarkus-jdbc-postgresql`
 * **Cloud & Stockage :** `quarkus-amazon-s3`, `software.amazon.awssdk`
 * **Web & API :** `quarkus-rest-jackson`, `quarkus-smallrye-openapi` (génération automatique du Swagger)
+* **Sécurité :** `quarkus-oidc` (Keycloak, Dev Services intégré)
+* **WebSocket :** `quarkus-websockets-next`, `quarkus-reactive-routes` (filtre `@RouteFilter` pour l'auth WS)
 * **Tests :** `quarkus-junit5-mockito`, `rest-assured`
 * **Utilitaires :** `lombok`
 
@@ -120,6 +122,69 @@ Quarkus permet d'ajouter très facilement de nouvelles dépendances sans modifie
 ```
 *(Si la CLI Quarkus est installée, la commande raccourcie est `quarkus ext add hibernate-validator`)*
 
+
+---
+
+## 🔐 Authentification (Keycloak)
+
+L'API est sécurisée via **Keycloak** (OIDC), intégré grâce à l'extension `quarkus-oidc`. En mode développement, Quarkus provisionne automatiquement un conteneur Keycloak (Dev Services) et importe le realm `qui-est-ce` depuis `src/main/resources/realm-export.json`.
+
+### Rôles
+
+| Rôle | Droits |
+|------|--------|
+| `joueur` (`player`) | Lire toutes les ressources ; créer, rejoindre, démarrer, deviner, réinitialiser et supprimer des parties |
+| `administrateur` (`admin`) | Tout ce que peut faire un joueur + gérer les packs et les cartes (CRUD) |
+
+> Le rôle `admin` est un rôle composite qui inclut `player` : un administrateur peut donc également jouer.
+
+### Obtenir un token (dev)
+
+Le port Keycloak est affiché dans la Dev UI (`http://localhost:8080/q/dev`) → carte *OpenID Connect*.
+
+```bash
+curl -s -X POST http://localhost:<kc-port>/realms/qui-est-ce/protocol/openid-connect/token \
+  -d "grant_type=password&client_id=qui-est-ce-back&client_secret=dev-secret&username=player1&password=password" \
+  | jq -r .access_token
+```
+
+Utilisateurs de test (mot de passe `password`) : `player1`, `player2` (rôle : joueur), `admin` (rôle : administrateur).
+
+### Utiliser le token
+
+**REST :** ajouter le header `Authorization: Bearer <token>` à chaque requête.
+
+**WebSocket :** passer le token en query param lors de la connexion :
+```bash
+wscat -c "ws://localhost:8080/ws/games?access_token=<token>"
+```
+
+#### Comment ça marche côté Quarkus
+
+Les navigateurs n'autorisent pas l'envoi d'un header `Authorization` sur l'API JavaScript `WebSocket`, ce qui force à passer le JWT en query param. Or **Quarkus n'a pas de propriété de configuration native** pour lire un bearer token depuis la query string : sans intervention, le mécanisme OIDC ne voit aucun credential et renvoie **401** sur le handshake.
+
+Deux options officielles existent :
+
+1. **Sous-protocole WebSocket** (recommandé par Quarkus) : le client envoie `quarkus-http-upgrade#Authorization#Bearer <token>` comme sous-protocole. Côté serveur, activer `quarkus.websockets-next.server.propagate-subprotocol-headers=true`. Plus sûr (le token n'apparaît pas dans l'URL ni les logs) mais demande une adaptation du client.
+2. **Filtre de route Vert.x** (utilisé ici) : un `@RouteFilter` promeut `?access_token=…` vers un header `Authorization: Bearer …` avant que le handler de sécurité ne s'exécute. Voir `util/WebSocketTokenFilter.java`. Nécessite l'extension `quarkus-reactive-routes`.
+
+Le filtre retenu est minimal :
+
+```java
+@RouteFilter(500)               // priorité > handler de sécurité OIDC
+void promoteAccessTokenQueryParamToHeader(RoutingContext rc) {
+    if (rc.request().path().startsWith("/ws/")
+            && rc.request().getHeader("Authorization") == null) {
+        String token = rc.request().getParam("access_token");
+        if (token != null && !token.isEmpty()) {
+            rc.request().headers().add("Authorization", "Bearer " + token);
+        }
+    }
+    rc.next();
+}
+```
+
+Ainsi `@Authenticated` et les rôles continuent de fonctionner exactement comme pour les endpoints REST.
 
 ---
 
@@ -155,11 +220,11 @@ Deux endpoints WebSocket permettent aux clients de recevoir les changements d'é
 # Installer wscat
 npm install -g wscat
 
-# Se connecter au lobby
-wscat -c ws://localhost:8080/ws/games
+# Se connecter au lobby (avec token)
+wscat -c "ws://localhost:8080/ws/games?access_token=<token>"
 
-# Se connecter à une partie spécifique
-wscat -c ws://localhost:8080/ws/game/<gameId>
+# Se connecter à une partie spécifique (avec token)
+wscat -c "ws://localhost:8080/ws/game/<gameId>?access_token=<token>"
 ```
 
 ---
@@ -178,5 +243,5 @@ Mise en place d'un workflow **GitHub Actions** simple permettant de garantir la 
 - [ ] **Multi-sessions :** Passer le serveur en mode multi-games pour gérer plusieurs parties en simultané.
 - [ ] **Persistance des parties :** Enregistrer l'état des parties pour les retrouver si le serveur redémarre alors qu'une partie n'est pas terminée.
 - [ ] **Architecture distribuée :** Déplacer toute la logique métier du jeu dans un microservice dédié développé en **Rust**.
-- [ ] **Sécurité :** Mise en place d'une authentification (via **Keycloak**) et sécurisation des API administrateur.
+- [x] **Sécurité :** Authentification via **Keycloak** et sécurisation des API.
 - [ ] **Rate Limiting :** Protection contre le spam et les abus sur les API publiques de jeu.
