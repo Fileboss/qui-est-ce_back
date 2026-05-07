@@ -1,29 +1,37 @@
 package card;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import lombok.RequiredArgsConstructor;
+import pack.Pack;
+import pack.PackService;
 
 import java.util.List;
 import java.util.Optional;
 
 /** Service layer for card persistence operations. */
 @ApplicationScoped
+@RequiredArgsConstructor
 public class CardService {
 
-    public static final String PACK_ID = "pack.id";
+    private final CardRepository cardRepository;
+    private final PackService packService;
 
     /** Returns all cards belonging to the given pack, mapped to DTOs. */
     public List<CardDTO> getCardsFromPack(String packId) {
-        @SuppressWarnings("java:S3252") // Active Record pattern
-        List<Card> cards = Card.list(PACK_ID, Long.parseLong(packId));
-        return cards
-                .stream()
-                .map(card -> new CardDTO(String.valueOf(card.id), card.getName(), card.getImageUrl(), String.valueOf(card.getPack().id)))
+        return cardRepository.listByPackId(Long.parseLong(packId)).stream()
+                .map(CardService::toDTO)
                 .toList();
     }
 
-    /** Persists a new card to the database. Must be called within a transaction. */
-    public void createCard(Card card) {
-        card.persist();
+    /** Persists a new card under the given pack. Must be called within a transaction. Returns 404 if pack not found. */
+    public CardDTO createCard(String name, long packId, String imageUrl) {
+        Pack pack = packService.findById(packId);
+        Card card = new Card();
+        card.setName(name);
+        card.setPack(pack);
+        card.setImageUrl(imageUrl);
+        cardRepository.persist(card);
+        return toDTO(card);
     }
 
     /**
@@ -31,11 +39,10 @@ public class CardService {
      * Must be called within a transaction.
      */
     public Optional<String> deleteCard(long cardId) {
-        @SuppressWarnings("java:S3252") // Active Record pattern
-        Card card = Card.findById(cardId);
+        Card card = cardRepository.findById(cardId);
         if (card == null) return Optional.empty();
         String imageUrl = card.getImageUrl();
-        card.delete();
+        cardRepository.delete(card);
         return Optional.of(imageUrl);
     }
 
@@ -44,11 +51,18 @@ public class CardService {
      * Must be called within a transaction.
      */
     public List<String> deleteCardsFromPack(long packId) {
-        @SuppressWarnings("java:S3252") // Active Record pattern
-        List<Card> cards = Card.list(PACK_ID, packId);
+        List<Card> cards = cardRepository.listByPackId(packId);
         List<String> imageUrls = cards.stream().map(Card::getImageUrl).toList();
-        cards.forEach(Card::delete);
+        cards.forEach(cardRepository::delete);
         return imageUrls;
     }
 
+    private static CardDTO toDTO(Card card) {
+        return new CardDTO(
+                String.valueOf(card.getId()),
+                card.getName(),
+                card.getImageUrl(),
+                String.valueOf(card.getPack().getId())
+        );
+    }
 }

@@ -29,6 +29,15 @@ public class PackResource {
         return packService.getAllPacks();
     }
 
+    /** Returns a single pack by id. Returns 404 if not found. */
+    @GET
+    @Authenticated
+    @Path("/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public PackDTO getOne(@PathParam("id") long packId) {
+        return packService.getPack(packId);
+    }
+
     /** Returns all cards belonging to the given pack. */
     @GET
     @Authenticated
@@ -48,19 +57,24 @@ public class PackResource {
         return packService.createPack(packName);
     }
 
+    /** Renames a pack. Returns 404 if not found. */
+    @PATCH
+    @Path("/{id}")
+    @RolesAllowed("admin")
+    @Transactional
+    @Produces(MediaType.APPLICATION_JSON)
+    public PackDTO updatePack(@PathParam("id") long packId, @QueryParam("packName") String packName) {
+        return packService.updatePack(packId, packName);
+    }
+
     /** Deletes a pack, all its cards, and their S3 images. Returns 404 if pack not found. */
     @DELETE
     @Path("/{id}")
     @RolesAllowed("admin")
     @Transactional
     public Response deletePack(@PathParam("id") long packId) {
-        @SuppressWarnings("java:S3252") // Active Record pattern
-        Pack pack = Pack.findById(packId);
-        if (pack == null) {
-            throw new NotFoundException("Le pack avec l'id " + packId + " n'existe pas.");
-        }
         List<String> imageUrls = cardService.deleteCardsFromPack(packId);
-        pack.delete();
+        packService.deletePack(packId);
         imageUrls.forEach(imageService::deleteImage);
         return Response.noContent().build();
     }

@@ -10,7 +10,6 @@ import lombok.RequiredArgsConstructor;
 import org.jboss.resteasy.reactive.PartType;
 import org.jboss.resteasy.reactive.RestForm;
 import org.jboss.resteasy.reactive.multipart.FileUpload;
-import pack.Pack;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -58,28 +57,9 @@ public class CardResource {
 
         byte[] fileBytes = Files.readAllBytes(form.image.filePath());
         String imageKey = imageService.uploadImage(fileBytes, form.image.contentType());
+        String imageUrl = imageService.getImageUrl(imageKey);
 
-        long packIdAsLong = Long.parseLong(form.packId);
-        @SuppressWarnings("java:S3252") // Active Record pattern
-        Pack packFound = Pack.findById(packIdAsLong);
-
-        if (packFound == null) {
-            throw new NotFoundException("Le pack avec l'id " + form.packId + " n'existe pas.");
-        }
-
-        Card card = new Card();
-        card.setName(form.name);
-        card.setPack(packFound);
-        card.setImageUrl(imageService.getImageUrl(imageKey));
-
-        cardService.createCard(card);
-
-        return new CardDTO(
-                String.valueOf(card.id),
-                card.getName(),
-                card.getImageUrl(),
-                String.valueOf(card.getPack().id)
-        );
+        return cardService.createCard(form.name, Long.parseLong(form.packId), imageUrl);
     }
 
     /** Deletes a card and its associated S3 image. Returns 404 if not found. */
