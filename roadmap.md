@@ -4,40 +4,17 @@ Backlog for taking the `qui-est-ce` backend from "works on my machine" to "runni
 
 ---
 
-## 1. Users, ownership, and identity-based game joining
+## 1. Two distinct players required to start
 
-Currently `Pack` and `Card` are global, and `GameEngine` exposes `player1/join` / `player2/join` as anonymous slots. Make ownership and game participation tied to real, authenticated users.
+Currently nothing prevents the same user from calling both `player1/join` and `player2/join`, which would let a single user start a game against themselves.
 
-### 1a. User entity
+- Extract the caller's `sub` claim from the JWT on each join call and store it alongside the slot in `GameEngine` (no new entity needed — just two nullable `String` fields).
+- Before `start`, verify `player1Sub` and `player2Sub` are both non-null and not equal. Throw `IllegalStateException` (→ 400) otherwise.
+- If a user attempts to join a slot that is already taken by *them*, return 409.
+- Update `GameUpdateEvent` to include how many players have joined so the frontend can show "waiting for player 2".
+- Tests: same user joining both slots returns 409; starting with only one player joined returns 400; two different users can start normally.
 
-- Add a `User` entity: `id`, `keycloak_sub` (unique, indexed), `display_name`, `avatar_url` (nullable), `created_at`, `updated_at`.
-- Sync from JWT on first authenticated request — no manual signup. Pull `sub`, `preferred_username`, and `name` from the token; create the user row lazily.
-- Endpoint `GET /users/me` — returns the current user's profile.
-- Endpoint `PATCH /users/me` — lets the user edit `display_name` and `avatar_url`. Validate length, reject empty display names.
-- Tests: editing `/users/me` only changes the caller's row; `display_name` uniqueness is *not* enforced (friends can clash; identity is the keycloak sub).
-
-### 1b. Pack and card ownership
-
-- Add `owner_id` FK on `Pack` (cards inherit ownership through their pack).
-- Repositories: list/get/create/update/delete scoped to the authenticated user. `admin` keeps full access.
-- Migrate existing data: assign all current packs to the `admin` user in the Flyway baseline.
-- Tests: `player1` token cannot read or modify `player2`'s packs.
-
-### 1c. Identity-based game joining
-
-Replace the position-based `player1/join` / `player2/join` model with identity-based joining.
-
-- A `Game` tracks `player1_user_id` and `player2_user_id` (both nullable until joined).
-- New flow:
-  - `POST /games` — creates a game in `PREPARING`. Caller is *not* automatically a player.
-  - `POST /games/{id}/join` — assigns the caller to the first free slot. Returns the card they need to guess (the opponent's target — keep the existing cross-assignment quirk).
-  - `POST /games/{id}/start` — only succeeds if both `player1_user_id` and `player2_user_id` are set, and the caller is one of them.
-- **Same user cannot occupy both slots.** If a user calls `join` twice on the same game, return 409 (or 200 with their existing slot — pick one and document it).
-- Guess and reset endpoints check that the caller is the relevant player. `player1/guess` becomes `games/{id}/guess` and the engine derives which player from the JWT.
-- Update `GameUpdateEvent` payloads to include the joined users' display names so the frontend can show "waiting for player 2".
-- Tests: a third user trying to join a full game gets 409; starting with only one player joined returns 400; a non-participant trying to guess returns 403.
-
-**Done when:** two distinct authenticated users can join a game, the game cannot start until both have joined, no user can take both slots, and packs are visible only to their owner.
+**Done when:** a single authenticated user cannot occupy both player slots, and the game refuses to start until two distinct users have joined.
 
 ---
 
@@ -47,7 +24,7 @@ Stop relying on `drop-and-create`. Required before any prod data exists.
 
 - Add `quarkus-flyway` extension.
 - Set `quarkus.hibernate-orm.database.generation=validate` for `%prod`.
-- Generate baseline `V1__init.sql` from current schema (after task 1 — so users, ownership, and game participation are in V1).
+- Generate baseline `V1__init.sql` from current schema.
 - Enable `quarkus.flyway.migrate-at-start=true` for `%prod`.
 
 **Done when:** restarting the app does not wipe the database, and adding a column requires a new `V<n>__*.sql` file.
@@ -169,7 +146,22 @@ Explicit, not relying on the reverse proxy.
 
 ---
 
-## 12. Observability: structured logs and basic metrics
+## 12. In-game live text chat
+
+Players in a game room can send messages to each other in real time. Nothing is persisted — messages exist only as long as the WebSocket session lives.
+
+- Reuse the existing `/ws/game/{gameId}` channel. Add a new inbound message type `CHAT_MESSAGE` with a `text` field (max ~500 chars, validated server-side).
+- `GameWebSocket.@OnTextMessage` already receives raw text — parse the type field and dispatch accordingly. No new endpoint needed.
+- Broadcast the message to all connections on that game path with a new outbound event type `CHAT_MESSAGE` containing `senderSub` (or display name from the JWT `preferred_username` claim) and `text`.
+- Reject messages from unauthenticated or non-participant connections (same guard as guess/reset).
+- No storage — on disconnect the history is gone.
+- Tests: a message sent by player 1 is received by player 2; a non-participant connection does not receive game-private chat; oversized messages are rejected with a WS close frame or error event.
+
+**Done when:** two players in the same game room can exchange text messages in real time, and nothing is written to the database.
+
+---
+
+## 13. Observability: structured logs and basic metrics
 
 For when something breaks at 11pm.
 
@@ -182,7 +174,7 @@ For when something breaks at 11pm.
 
 ---
 
-## 13. Backup strategy
+## 14. Backup strategy
 
 Documented and automated, even at small scale.
 
@@ -195,7 +187,7 @@ Documented and automated, even at small scale.
 
 ---
 
-## 14. Upload size limits and basic rate limiting
+## 15. Upload size limits and basic rate limiting
 
 Defensive, prevents accidental disk fill.
 
@@ -207,11 +199,11 @@ Defensive, prevents accidental disk fill.
 
 ---
 
-## 15. Game state persistence
+## 16. Game state persistence
 
 In-memory `GameRegistry` loses all state on restart.
 
-- Persist active games to Postgres (a `game` table with the serialized state, or a proper schema referencing the `User` rows from task 1).
+- Persist active games to Postgres (a `game` table with the serialized state).
 - Reload on startup.
 - Decide on TTL — abandoned games should not accumulate forever.
 
@@ -219,9 +211,49 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
+## 17. User entity
+
+- Add a `User` entity: `id`, `keycloak_sub` (unique, indexed), `display_name`, `avatar_url` (nullable), `created_at`, `updated_at`.
+- Sync from JWT on first authenticated request — no manual signup. Pull `sub`, `preferred_username`, and `name` from the token; create the user row lazily.
+- Endpoint `GET /users/me` — returns the current user's profile.
+- Endpoint `PATCH /users/me` — lets the user edit `display_name` and `avatar_url`. Validate length, reject empty display names.
+- Tests: editing `/users/me` only changes the caller's row; `display_name` uniqueness is *not* enforced (friends can clash; identity is the keycloak sub).
+
+**Done when:** every authenticated user has a persistent profile row, and they can read and update it.
+
+---
+
+## 18. Pack and card ownership
+
+- Add `owner_id` FK on `Pack` (cards inherit ownership through their pack).
+- Repositories: list/get/create/update/delete scoped to the authenticated user. `admin` keeps full access.
+- Migrate existing data: assign all current packs to the `admin` user in a Flyway migration.
+- Tests: `player1` token cannot read or modify `player2`'s packs.
+
+**Done when:** packs are visible only to their owner (and to `admin`).
+
+---
+
+## 19. Full identity-based game joining
+
+Replace the position-based `player1/join` / `player2/join` model with identity-based joining (requires task 16).
+
+- A `Game` tracks `player1_user_id` and `player2_user_id` (both nullable until joined), referencing the `User` table.
+- New flow:
+  - `POST /games` — creates a game in `PREPARING`. Caller is *not* automatically a player.
+  - `POST /games/{id}/join` — assigns the caller to the first free slot. Returns the card they need to guess (the opponent's target — keep the existing cross-assignment quirk).
+  - `POST /games/{id}/start` — only succeeds if both slots are filled and the caller is one of them.
+- Guess and reset endpoints check that the caller is the relevant player. `player1/guess` becomes `games/{id}/guess` and the engine derives which player from the JWT.
+- Update `GameUpdateEvent` payloads to include the joined users' display names.
+- Tests: a third user trying to join a full game gets 409; a non-participant trying to guess returns 403.
+
+**Done when:** the position-based API is replaced, and all game actions are tied to authenticated identity.
+
+---
+
 ## Notes
 
 - Tasks 1–6 can happen on a feature branch before any infra exists.
 - Tasks 7–9 are the "first deploy" milestone — once 9 is done, the loop is closed.
-- Tasks 10–14 harden the prod environment and can be tackled incrementally after first deploy.
-- Task 15 is the only one that affects user-visible behavior; rest are invisible if everything works.
+- Tasks 10–16 harden the prod environment and can be tackled incrementally after first deploy.
+- Tasks 17–19 bring full user identity into the game model; they depend on task 2 (Flyway) being in place.
