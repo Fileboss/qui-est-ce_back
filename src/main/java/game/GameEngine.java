@@ -6,7 +6,12 @@ import lombok.Getter;
 import java.util.List;
 import java.util.Random;
 
-/** Holds the state and logic of a single game instance. Thread-safe via synchronized methods. */
+/**
+ * Holds the state and logic of a single game instance. Thread-safe: state mutations run under the
+ * instance monitor (synchronized methods); the four state fields are volatile so unsynchronized
+ * getters observe the latest publication. CardDTO is an immutable record, so volatile reference
+ * publication is sufficient.
+ */
 public class GameEngine {
 
     private final Random random = new Random();
@@ -20,13 +25,13 @@ public class GameEngine {
     }
 
     @Getter
-    private GameState gameState = GameState.NOT_STARTED;
+    private volatile GameState gameState = GameState.NOT_STARTED;
     @Getter
-    private List<CardDTO> cardDTOs;
+    private volatile List<CardDTO> cardDTOs;
 
-    private CardDTO player1CardDTOToGuess;
+    private volatile CardDTO player1CardDTOToGuess;
 
-    private CardDTO player2CardDTOToGuess;
+    private volatile CardDTO player2CardDTOToGuess;
 
     /** Initializes the game with the given card pack and randomly assigns target cards to each player. */
     public synchronized void create(List<CardDTO> cardDTOs) {
@@ -36,9 +41,10 @@ public class GameEngine {
         if (cardDTOs.isEmpty()) {
             throw new IllegalStateException("A game cannot be started with an empty card pack");
         }
-        this.cardDTOs = cardDTOs;
-        this.player1CardDTOToGuess = this.cardDTOs.get(random.nextInt(cardDTOs.size()));
-        this.player2CardDTOToGuess = this.cardDTOs.get(random.nextInt(cardDTOs.size()));
+        this.cardDTOs = List.copyOf(cardDTOs);
+        // Both players may end up with the same target — intentional; documented and tested.
+        this.player1CardDTOToGuess = this.cardDTOs.get(random.nextInt(this.cardDTOs.size()));
+        this.player2CardDTOToGuess = this.cardDTOs.get(random.nextInt(this.cardDTOs.size()));
         this.gameState = GameState.PREPARING;
     }
 

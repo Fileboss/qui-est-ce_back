@@ -4,8 +4,11 @@ import image.ImageService;
 import io.quarkus.test.InjectMock;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+
+import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
@@ -20,6 +23,11 @@ import static org.mockito.ArgumentMatchers.anyString;
 @TestSecurity(user = "admin", roles = "admin")
 class PackResourceTest {
 
+    private static final byte[] PNG = {
+            (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+            0x00, 0x00, 0x00, 0x00
+    };
+
     @InjectMock
     ImageService imageService;
 
@@ -33,8 +41,9 @@ class PackResourceTest {
     @Test
     void deletePack_withNoCards_returns204() {
         String packId = given()
-            .queryParam("packName", "Empty pack")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Empty pack"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
 
@@ -49,8 +58,9 @@ class PackResourceTest {
         Mockito.when(imageService.getImageUrl("fake-key")).thenReturn("http://fake-bucket/fake-key");
 
         String packId = given()
-            .queryParam("packName", "Pack with card")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Pack with card"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
 
@@ -58,8 +68,8 @@ class PackResourceTest {
             .contentType("multipart/form-data")
             .multiPart("name", "Test Card")
             .multiPart("packId", packId)
-            .multiPart("image", "test.png", new byte[]{1, 2, 3}, "image/png")
-            .when().put("/card/create")
+            .multiPart("image", "test.png", PNG, "image/png")
+            .when().post("/card/create")
             .then().statusCode(200);
 
         given()
@@ -72,8 +82,9 @@ class PackResourceTest {
     @Test
     void getOne_returns200_withPackBody() {
         String packId = given()
-            .queryParam("packName", "Lookup pack")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Lookup pack"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
 
@@ -95,13 +106,15 @@ class PackResourceTest {
     @Test
     void updatePack_renamesPack_andPersistsChange() {
         String packId = given()
-            .queryParam("packName", "Original name")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Original name"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
 
         given()
-            .queryParam("packName", "Renamed")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Renamed"))
             .when().patch("/pack/" + packId)
             .then()
                 .statusCode(200)
@@ -117,7 +130,8 @@ class PackResourceTest {
     @Test
     void updatePack_returns404_whenUnknown() {
         given()
-            .queryParam("packName", "X")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "X"))
             .when().patch("/pack/99999")
             .then().statusCode(404);
     }
@@ -125,13 +139,15 @@ class PackResourceTest {
     @Test
     void getAll_includesCreatedPacks() {
         String firstId = given()
-            .queryParam("packName", "ListMarker A")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "ListMarker A"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
         String secondId = given()
-            .queryParam("packName", "ListMarker B")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "ListMarker B"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
 
@@ -149,8 +165,9 @@ class PackResourceTest {
         Mockito.when(imageService.getImageUrl("cards-key")).thenReturn("http://fake-bucket/cards-key");
 
         String packId = given()
-            .queryParam("packName", "Cards pack")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Cards pack"))
+            .when().post("/pack/create")
             .then().statusCode(200)
             .extract().jsonPath().getString("id");
 
@@ -158,8 +175,8 @@ class PackResourceTest {
             .contentType("multipart/form-data")
             .multiPart("name", "Solo card")
             .multiPart("packId", packId)
-            .multiPart("image", "x.png", new byte[]{1, 2, 3}, "image/png")
-            .when().put("/card/create")
+            .multiPart("image", "x.png", PNG, "image/png")
+            .when().post("/card/create")
             .then().statusCode(200);
 
         given()
@@ -171,5 +188,31 @@ class PackResourceTest {
                 .body("[0].name", is("Solo card"))
                 .body("[0].imageUrl", is("http://fake-bucket/cards-key"))
                 .body("[0].packId", is(packId));
+    }
+
+    @Test
+    void createPack_returns400_whenPackNameBlank() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", ""))
+            .when().post("/pack/create")
+            .then().statusCode(400);
+    }
+
+    @Test
+    void updatePack_returns400_whenPackNameTooLong() {
+        String packId = given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Sized"))
+            .when().post("/pack/create")
+            .then().statusCode(200)
+            .extract().jsonPath().getString("id");
+
+        String overLong = "x".repeat(129);
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", overLong))
+            .when().patch("/pack/" + packId)
+            .then().statusCode(400);
     }
 }

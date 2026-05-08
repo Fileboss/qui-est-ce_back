@@ -1,6 +1,7 @@
 package pack;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 import jakarta.ws.rs.NotFoundException;
 import lombok.RequiredArgsConstructor;
 
@@ -13,7 +14,8 @@ public class PackService {
 
     private final PackRepository packRepository;
 
-    /** Creates and persists a new pack with the given name. Must be called within a transaction. */
+    /** Creates and persists a new pack with the given name. */
+    @Transactional
     public PackDTO createPack(String name) {
         Pack pack = new Pack(name);
         packRepository.persist(pack);
@@ -39,14 +41,16 @@ public class PackService {
         return toDTO(findById(packId));
     }
 
-    /** Renames a pack. Must be called within a transaction. */
+    /** Renames a pack. */
+    @Transactional
     public PackDTO updatePack(long packId, String name) {
         Pack pack = findById(packId);
         pack.setName(name);
         return toDTO(pack);
     }
 
-    /** Deletes a pack. Must be called within a transaction. Returns 404 if not found. */
+    /** Deletes a pack. Returns 404 if not found. */
+    @Transactional
     public void deletePack(long packId) {
         packRepository.delete(findById(packId));
     }

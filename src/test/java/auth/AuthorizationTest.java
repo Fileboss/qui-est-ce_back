@@ -2,7 +2,10 @@ package auth;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
+
+import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 
@@ -33,8 +36,9 @@ class AuthorizationTest {
     @TestSecurity(user = "bob", roles = "player")
     void createPack_asPlayer_returns403() {
         given()
-            .queryParam("packName", "Forbidden")
-            .when().put("/pack/create")
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Forbidden"))
+            .when().post("/pack/create")
             .then().statusCode(403);
     }
 

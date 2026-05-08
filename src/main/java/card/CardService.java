@@ -1,6 +1,7 @@
 package card;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import pack.Pack;
 import pack.PackService;
@@ -23,7 +24,8 @@ public class CardService {
                 .toList();
     }
 
-    /** Persists a new card under the given pack. Must be called within a transaction. Returns 404 if pack not found. */
+    /** Persists a new card under the given pack. Returns 404 if pack not found. */
+    @Transactional
     public CardDTO createCard(String name, long packId, String imageUrl) {
         Pack pack = packService.findById(packId);
         Card card = new Card();
@@ -34,10 +36,8 @@ public class CardService {
         return toDTO(card);
     }
 
-    /**
-     * Deletes a card by id and returns its image URL, or empty if not found.
-     * Must be called within a transaction.
-     */
+    /** Deletes a card by id and returns its image URL, or empty if not found. */
+    @Transactional
     public Optional<String> deleteCard(long cardId) {
         Card card = cardRepository.findById(cardId);
         if (card == null) return Optional.empty();
@@ -46,10 +46,8 @@ public class CardService {
         return Optional.of(imageUrl);
     }
 
-    /**
-     * Deletes all cards belonging to the given pack and returns their image URLs.
-     * Must be called within a transaction.
-     */
+    /** Deletes all cards belonging to the given pack and returns their image URLs. */
+    @Transactional
     public List<String> deleteCardsFromPack(long packId) {
         List<Card> cards = cardRepository.listByPackId(packId);
         List<String> imageUrls = cards.stream().map(Card::getImageUrl).toList();

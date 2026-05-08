@@ -12,7 +12,7 @@ public class NumberFormatExceptionMapper implements ExceptionMapper<NumberFormat
     public Response toResponse(NumberFormatException exception) {
         var json = Json.createObjectBuilder()
                 .add("Status", "Failed")
-                .add("Error", "Invalid numeric id: " + exception.getMessage())
+                .add("Error", "Invalid numeric id")
                 .build();
 
         return Response.status(Response.Status.BAD_REQUEST)

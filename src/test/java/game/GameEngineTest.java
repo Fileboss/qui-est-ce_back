@@ -37,6 +37,13 @@ class GameEngineTest {
     }
 
     @Test
+    void create_singleCardDeck_assignsSameTargetToBothPlayers() {
+        GameEngine engine = prepared(SINGLE);
+        assertThat(engine.getPlayer1CardDTOToGuess()).isEqualTo(CARD_1);
+        assertThat(engine.getPlayer2CardDTOToGuess()).isEqualTo(CARD_1);
+    }
+
+    @Test
     void create_throws_whenAlreadyPreparing() {
         GameEngine engine = prepared(DECK);
         assertThatThrownBy(() -> engine.create(DECK))

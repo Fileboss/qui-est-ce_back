@@ -6,6 +6,7 @@ import image.ImageService;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -49,12 +50,13 @@ public class PackResource {
 
     /** Creates a new pack with the given name. */
     @Path("/create")
-    @PUT
+    @POST
     @RolesAllowed("admin")
     @Transactional
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public PackDTO createPack(@QueryParam("packName") String packName) {
-        return packService.createPack(packName);
+    public PackDTO createPack(@Valid PackCreateRequest req) {
+        return packService.createPack(req.packName());
     }
 
     /** Renames a pack. Returns 404 if not found. */
@@ -62,9 +64,10 @@ public class PackResource {
     @Path("/{id}")
     @RolesAllowed("admin")
     @Transactional
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public PackDTO updatePack(@PathParam("id") long packId, @QueryParam("packName") String packName) {
-        return packService.updatePack(packId, packName);
+    public PackDTO updatePack(@PathParam("id") long packId, @Valid PackUpdateRequest req) {
+        return packService.updatePack(packId, req.packName());
     }
 
     /** Deletes a pack, all its cards, and their S3 images. Returns 404 if pack not found. */
