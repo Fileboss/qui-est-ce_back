@@ -8,6 +8,7 @@ import io.quarkus.test.security.TestSecurity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import util.PlayerConflictException;
 
 import java.util.List;
 
@@ -56,9 +57,7 @@ class GameResourceTest {
 
     @Test
     void testPlayer1JoinGame() {
-        GameEngine mockEngine = Mockito.mock(GameEngine.class);
-        Mockito.when(gameRegistry.getGame(FAKE_GAME_ID)).thenReturn(mockEngine);
-        Mockito.when(mockEngine.getPlayer2CardDTOToGuess()).thenReturn(fakeCardDTO);
+        Mockito.when(gameRegistry.player1Join(FAKE_GAME_ID, "player1")).thenReturn(fakeCardDTO);
 
         given()
         .when()
@@ -67,13 +66,13 @@ class GameResourceTest {
             .statusCode(200)
             .body("name", is("Philippe"))
             .body("packId", is("1"));
+
+        Mockito.verify(gameRegistry).player1Join(FAKE_GAME_ID, "player1");
     }
 
     @Test
     void testPlayer2JoinGame() {
-        GameEngine mockEngine = Mockito.mock(GameEngine.class);
-        Mockito.when(gameRegistry.getGame(FAKE_GAME_ID)).thenReturn(mockEngine);
-        Mockito.when(mockEngine.getPlayer1CardDTOToGuess()).thenReturn(fakeCardDTO);
+        Mockito.when(gameRegistry.player2Join(FAKE_GAME_ID, "player1")).thenReturn(fakeCardDTO);
 
         given()
         .when()
@@ -82,6 +81,35 @@ class GameResourceTest {
             .statusCode(200)
             .body("name", is("Philippe"))
             .body("packId", is("1"));
+
+        Mockito.verify(gameRegistry).player2Join(FAKE_GAME_ID, "player1");
+    }
+
+    @Test
+    void player1Join_propagatesConflict_returns409() {
+        Mockito.when(gameRegistry.player1Join(FAKE_GAME_ID, "player1"))
+                .thenThrow(new PlayerConflictException("User already joined this game as player 2"));
+
+        given()
+        .when()
+            .post("/game/" + FAKE_GAME_ID + "/player1/join")
+        .then()
+            .statusCode(409)
+            .body("Status", is("Failed"))
+            .body("Error", is("User already joined this game as player 2"));
+    }
+
+    @Test
+    void player2Join_propagatesConflict_returns409() {
+        Mockito.when(gameRegistry.player2Join(FAKE_GAME_ID, "player1"))
+                .thenThrow(new PlayerConflictException("User already joined this game as player 1"));
+
+        given()
+        .when()
+            .post("/game/" + FAKE_GAME_ID + "/player2/join")
+        .then()
+            .statusCode(409)
+            .body("Status", is("Failed"));
     }
 
     @Test

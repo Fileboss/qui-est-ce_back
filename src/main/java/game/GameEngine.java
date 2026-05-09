@@ -2,13 +2,14 @@ package game;
 
 import card.CardDTO;
 import lombok.Getter;
+import util.PlayerConflictException;
 
 import java.util.List;
 import java.util.Random;
 
 /**
  * Holds the state and logic of a single game instance. Thread-safe: state mutations run under the
- * instance monitor (synchronized methods); the four state fields are volatile so unsynchronized
+ * instance monitor (synchronized methods); the state fields are volatile so unsynchronized
  * getters observe the latest publication. CardDTO is an immutable record, so volatile reference
  * publication is sufficient.
  */
@@ -30,8 +31,10 @@ public class GameEngine {
     private volatile List<CardDTO> cardDTOs;
 
     private volatile CardDTO player1CardDTOToGuess;
-
     private volatile CardDTO player2CardDTOToGuess;
+
+    private volatile String player1Sub;
+    private volatile String player2Sub;
 
     /** Initializes the game with the given card pack and randomly assigns target cards to each player. */
     public synchronized void create(List<CardDTO> cardDTOs) {
@@ -48,26 +51,53 @@ public class GameEngine {
         this.gameState = GameState.PREPARING;
     }
 
-    /** Returns the card player 1 must guess (i.e. the card assigned to player 2). Only callable in PREPARING state. */
-    public CardDTO getPlayer1CardDTOToGuess() {
+    /**
+     * Records the caller as player 1 and returns the card player 1 must guess
+     * (cross-assignment: player2CardDTOToGuess; see CLAUDE.md). Idempotent for the same sub.
+     * Throws {@link PlayerConflictException} if the sub already occupies the player 2 slot.
+     */
+    public synchronized CardDTO player1Join(String sub) {
         if (gameState != GameState.PREPARING) {
-            throw new IllegalStateException("Can only start a game which is being prepared lol");
+            throw new IllegalStateException("Can only join a game which is being prepared");
         }
-        return player1CardDTOToGuess;
-    }
-
-    /** Returns the card player 2 must guess (i.e. the card assigned to player 1). Only callable in PREPARING state. */
-    public CardDTO getPlayer2CardDTOToGuess() {
-        if (gameState != GameState.PREPARING) {
-            throw new IllegalStateException("Can only start a game which is being prepared");
+        if (sub.equals(player2Sub)) {
+            throw new PlayerConflictException("User already joined this game as player 2");
         }
+        player1Sub = sub;
         return player2CardDTOToGuess;
     }
 
-    /** Transitions the game from PREPARING to STARTED. */
+    /**
+     * Records the caller as player 2 and returns the card player 2 must guess
+     * (cross-assignment: player1CardDTOToGuess; see CLAUDE.md). Idempotent for the same sub.
+     * Throws {@link PlayerConflictException} if the sub already occupies the player 1 slot.
+     */
+    public synchronized CardDTO player2Join(String sub) {
+        if (gameState != GameState.PREPARING) {
+            throw new IllegalStateException("Can only join a game which is being prepared");
+        }
+        if (sub.equals(player1Sub)) {
+            throw new PlayerConflictException("User already joined this game as player 1");
+        }
+        player2Sub = sub;
+        return player1CardDTOToGuess;
+    }
+
+    /** Number of distinct players that have joined (0, 1, or 2). */
+    public int getPlayersJoined() {
+        int count = 0;
+        if (player1Sub != null) count++;
+        if (player2Sub != null) count++;
+        return count;
+    }
+
+    /** Transitions the game from PREPARING to STARTED. Both player slots must be occupied. */
     public synchronized void start() {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only start a game which is being prepared");
+        }
+        if (player1Sub == null || player2Sub == null) {
+            throw new IllegalStateException("Cannot start a game until both players have joined");
         }
         gameState = GameState.STARTED;
     }
@@ -104,6 +134,8 @@ public class GameEngine {
         cardDTOs = null;
         player1CardDTOToGuess = null;
         player2CardDTOToGuess = null;
+        player1Sub = null;
+        player2Sub = null;
         gameState = GameState.NOT_STARTED;
     }
 

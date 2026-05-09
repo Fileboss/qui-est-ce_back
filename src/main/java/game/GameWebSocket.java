@@ -21,8 +21,8 @@ public class GameWebSocket {
     public String onOpen(WebSocketConnection connection) {
         String gameId = connection.pathParam("gameId");
         GameUpdateEvent event = gameRegistry.findGame(gameId)
-                .map(engine -> new GameUpdateEvent(gameId, "STATE_CHANGE", engine.getGameState().toString(), null))
-                .orElseGet(() -> new GameUpdateEvent(gameId, "DELETED", null, null));
+                .map(engine -> new GameUpdateEvent(gameId, "STATE_CHANGE", engine.getGameState().toString(), null, null))
+                .orElseGet(() -> new GameUpdateEvent(gameId, "DELETED", null, null, null));
         try {
             return objectMapper.writeValueAsString(event);
         } catch (JsonProcessingException e) {

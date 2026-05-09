@@ -3,6 +3,7 @@ package game;
 import card.CardDTO;
 import card.CardService;
 import io.quarkus.security.Authenticated;
+import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -20,6 +21,7 @@ public class GameResource {
 
     private final GameRegistry gameRegistry;
     private final CardService cardService;
+    private final SecurityIdentity identity;
 
     @GET
     @Authenticated
@@ -57,22 +59,22 @@ public class GameResource {
         return new GameStatusResponse(SUCCESS, null);
     }
 
-    /** Returns the card player 1 must guess. Must be called before start. */
+    /** Records the caller as player 1 and returns the card player 1 must guess. */
     @POST
     @Path("/{gameId}/player1/join")
     @RolesAllowed("player")
     @Produces(MediaType.APPLICATION_JSON)
     public CardDTO player1JoinGame(@PathParam("gameId") String gameId) {
-        return gameRegistry.getGame(gameId).getPlayer2CardDTOToGuess();
+        return gameRegistry.player1Join(gameId, identity.getPrincipal().getName());
     }
 
-    /** Returns the card player 2 must guess. Must be called before start. */
+    /** Records the caller as player 2 and returns the card player 2 must guess. */
     @POST
     @Path("/{gameId}/player2/join")
     @RolesAllowed("player")
     @Produces(MediaType.APPLICATION_JSON)
     public CardDTO player2JoinGame(@PathParam("gameId") String gameId) {
-        return gameRegistry.getGame(gameId).getPlayer1CardDTOToGuess();
+        return gameRegistry.player2Join(gameId, identity.getPrincipal().getName());
     }
 
     /** Starts the game after both players have joined. */

@@ -20,6 +20,9 @@ class GameRegistryTest {
     private static final CardDTO CARD_1 = new CardDTO("1", "Alice", "http://img/1", "1");
     private static final List<CardDTO> SINGLE = List.of(CARD_1);
 
+    private static final String SUB_1 = "user-sub-1";
+    private static final String SUB_2 = "user-sub-2";
+
     @SuppressWarnings("unchecked")
     private final Event<GameUpdateEvent> eventBus = mock(Event.class);
     private GameRegistry registry;
@@ -41,6 +44,13 @@ class GameRegistryTest {
         return captor.getAllValues();
     }
 
+    private String createGameAndJoinBothPlayers() {
+        GameDTO dto = registry.createGame(SINGLE);
+        registry.player1Join(dto.gameId(), SUB_1);
+        registry.player2Join(dto.gameId(), SUB_2);
+        return dto.gameId();
+    }
+
     @Test
     void createGame_returnsDtoWithUuid_andFiresGameCreatedEvent() {
         GameDTO dto = registry.createGame(SINGLE);
@@ -54,6 +64,7 @@ class GameRegistryTest {
         assertThat(fired.type()).isEqualTo("GAME_CREATED");
         assertThat(fired.gameState()).isEqualTo("PREPARING");
         assertThat(fired.correct()).isNull();
+        assertThat(fired.playersJoined()).isNull();
     }
 
     @Test
@@ -122,6 +133,7 @@ class GameRegistryTest {
         assertThat(deleted.gameId()).isEqualTo(dto.gameId());
         assertThat(deleted.gameState()).isNull();
         assertThat(deleted.correct()).isNull();
+        assertThat(deleted.playersJoined()).isNull();
     }
 
     @Test
@@ -136,18 +148,58 @@ class GameRegistryTest {
     }
 
     @Test
-    void startGame_transitionsToStarted_andFiresStateChange() {
+    void player1Join_returnsCard_andFiresStateChangeWithPlayersJoined() {
         GameDTO dto = registry.createGame(SINGLE);
-        registry.startGame(dto.gameId());
 
-        assertThat(registry.getGame(dto.gameId()).getGameState())
+        CardDTO card = registry.player1Join(dto.gameId(), SUB_1);
+
+        assertThat(card).isEqualTo(CARD_1);
+        GameUpdateEvent joinEvent = capturedAllEvents().get(1); // [0]=created, [1]=join
+        assertThat(joinEvent.type()).isEqualTo(GameRegistry.STATE_CHANGE);
+        assertThat(joinEvent.gameState()).isEqualTo("PREPARING");
+        assertThat(joinEvent.playersJoined()).isEqualTo(1);
+        assertThat(joinEvent.correct()).isNull();
+    }
+
+    @Test
+    void player2Join_afterPlayer1_firesStateChangeWithPlayersJoinedTwo() {
+        GameDTO dto = registry.createGame(SINGLE);
+        registry.player1Join(dto.gameId(), SUB_1);
+
+        CardDTO card = registry.player2Join(dto.gameId(), SUB_2);
+
+        assertThat(card).isEqualTo(CARD_1);
+        List<GameUpdateEvent> events = capturedAllEvents();
+        GameUpdateEvent secondJoin = events.get(events.size() - 1);
+        assertThat(secondJoin.type()).isEqualTo(GameRegistry.STATE_CHANGE);
+        assertThat(secondJoin.playersJoined()).isEqualTo(2);
+    }
+
+    @Test
+    void startGame_transitionsToStarted_andFiresStateChange() {
+        String gameId = createGameAndJoinBothPlayers();
+        registry.startGame(gameId);
+
+        assertThat(registry.getGame(gameId).getGameState())
                 .isEqualTo(GameEngine.GameState.STARTED);
 
-        GameUpdateEvent stateChange = capturedAllEvents().get(1);
+        List<GameUpdateEvent> events = capturedAllEvents();
+        GameUpdateEvent stateChange = events.get(events.size() - 1);
         assertThat(stateChange.type()).isEqualTo(GameRegistry.STATE_CHANGE);
-        assertThat(stateChange.gameId()).isEqualTo(dto.gameId());
+        assertThat(stateChange.gameId()).isEqualTo(gameId);
         assertThat(stateChange.gameState()).isEqualTo("STARTED");
         assertThat(stateChange.correct()).isNull();
+        assertThat(stateChange.playersJoined()).isNull();
+    }
+
+    @Test
+    void startGame_throws_whenLessThanTwoPlayersJoined() {
+        GameDTO dto = registry.createGame(SINGLE);
+        registry.player1Join(dto.gameId(), SUB_1);
+
+        assertThatThrownBy(() -> registry.startGame(dto.gameId()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("both players");
     }
 
     @Test
@@ -159,16 +211,15 @@ class GameRegistryTest {
 
     @Test
     void resetGame_clearsCards_andFiresStateChange() {
-        GameDTO dto = registry.createGame(SINGLE);
-        registry.startGame(dto.gameId());
-        registry.player1Guess(dto.gameId(), CARD_1.id());
-        registry.resetGame(dto.gameId());
+        String gameId = createGameAndJoinBothPlayers();
+        registry.startGame(gameId);
+        registry.player1Guess(gameId, CARD_1.id());
+        registry.resetGame(gameId);
 
-        GameEngine engine = registry.getGame(dto.gameId());
+        GameEngine engine = registry.getGame(gameId);
         assertThat(engine.getGameState()).isEqualTo(GameEngine.GameState.NOT_STARTED);
         assertThat(engine.getCardDTOs()).isNull();
 
-        // Last fired event is the reset's STATE_CHANGE.
         List<GameUpdateEvent> all = capturedAllEvents();
         GameUpdateEvent last = all.get(all.size() - 1);
         assertThat(last.type()).isEqualTo(GameRegistry.STATE_CHANGE);
@@ -178,13 +229,14 @@ class GameRegistryTest {
 
     @Test
     void player1Guess_correctAnswer_returnsTrue_andFiresWithCorrectTrue() {
-        GameDTO dto = registry.createGame(SINGLE);
-        registry.startGame(dto.gameId());
+        String gameId = createGameAndJoinBothPlayers();
+        registry.startGame(gameId);
 
-        boolean result = registry.player1Guess(dto.gameId(), CARD_1.id());
+        boolean result = registry.player1Guess(gameId, CARD_1.id());
 
         assertThat(result).isTrue();
-        GameUpdateEvent guessEvent = capturedAllEvents().get(2); // [0]=created, [1]=start, [2]=guess
+        List<GameUpdateEvent> events = capturedAllEvents();
+        GameUpdateEvent guessEvent = events.get(events.size() - 1);
         assertThat(guessEvent.type()).isEqualTo(GameRegistry.STATE_CHANGE);
         assertThat(guessEvent.gameState()).isEqualTo("PLAYER_1_WINS");
         assertThat(guessEvent.correct()).isTrue();
@@ -192,28 +244,30 @@ class GameRegistryTest {
 
     @Test
     void player1Guess_wrongAnswer_returnsFalse_andFiresWithCorrectFalse_andStaysStarted() {
-        GameDTO dto = registry.createGame(SINGLE);
-        registry.startGame(dto.gameId());
+        String gameId = createGameAndJoinBothPlayers();
+        registry.startGame(gameId);
 
-        boolean result = registry.player1Guess(dto.gameId(), "99");
+        boolean result = registry.player1Guess(gameId, "99");
 
         assertThat(result).isFalse();
-        assertThat(registry.getGame(dto.gameId()).getGameState())
+        assertThat(registry.getGame(gameId).getGameState())
                 .isEqualTo(GameEngine.GameState.STARTED);
-        GameUpdateEvent guessEvent = capturedAllEvents().get(2);
+        List<GameUpdateEvent> events = capturedAllEvents();
+        GameUpdateEvent guessEvent = events.get(events.size() - 1);
         assertThat(guessEvent.gameState()).isEqualTo("STARTED");
         assertThat(guessEvent.correct()).isFalse();
     }
 
     @Test
     void player2Guess_correctAnswer_returnsTrue_andFiresWithCorrectTrue() {
-        GameDTO dto = registry.createGame(SINGLE);
-        registry.startGame(dto.gameId());
+        String gameId = createGameAndJoinBothPlayers();
+        registry.startGame(gameId);
 
-        boolean result = registry.player2Guess(dto.gameId(), CARD_1.id());
+        boolean result = registry.player2Guess(gameId, CARD_1.id());
 
         assertThat(result).isTrue();
-        GameUpdateEvent guessEvent = capturedAllEvents().get(2);
+        List<GameUpdateEvent> events = capturedAllEvents();
+        GameUpdateEvent guessEvent = events.get(events.size() - 1);
         assertThat(guessEvent.gameState()).isEqualTo("PLAYER_2_WINS");
         assertThat(guessEvent.correct()).isTrue();
     }

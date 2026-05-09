@@ -3,82 +3,77 @@
 ## Commands
 
 ```bash
-./mvnw compile quarkus:dev          # Dev mode w/ hot reload (needs Docker)
+./mvnw compile quarkus:dev          # Dev mode (needs Docker)
 ./mvnw test                         # All tests
-./mvnw test -Dtest=GameResourceTest # Single test class
-./mvnw clean package -DskipTests    # Full build → OpenAPI at target/generated/swagger/
+./mvnw test -Dtest=GameEngineTest   # Single test class
+./mvnw clean package -DskipTests    # Build → OpenAPI at target/generated/swagger/
 ./mvnw quarkus:add-extension -Dextensions="<name>"
 ```
 
-Dev Services auto-provision PostgreSQL, MinIO (`game-images` bucket) and Keycloak via Testcontainers.
-
-All code must be SonarQube-clean (no blocker/critical/major). Design references: *Designing Data-Intensive Applications* (Kleppmann), *Effective Java* (Bloch).
+Dev Services auto-provision PostgreSQL, MinIO (`game-images` bucket) and Keycloak via Testcontainers. Code must be SonarQube-clean (no blocker/critical/major). Design refs: *DDIA* (Kleppmann), *Effective Java* (Bloch). Roadmap: `ROADMAP.md`.
 
 ## Architecture
 
-REST + WebSocket backend for a 2-player "Guess Who" card game. Single active game at a time.
+REST + WebSocket backend for a 2-player "Guess Who" game. In-memory; one `GameEngine` per game id.
 
 ### Packages
 
-- **`game`** — game logic (no persistence). `GameEngine` = state machine; `GameResource` = REST; `GameRegistry` = per-game `GameEngine` map + fires update events.
-- **`game` (WebSocket)** — `GameWebSocket` (`/ws/game/{gameId}`), `GamesWebSocket` (`/ws/games`), `GameUpdateBroadcaster` (CDI observer → broadcast), `GameUpdateEvent` (push payload).
+- **`game`** — `GameEngine` (state machine, no persistence), `GameRegistry` (`@ApplicationScoped` map of engines + event firing), `GameResource` (REST), `GameWebSocket` (`/ws/game/{gameId}`), `GamesWebSocket` (`/ws/games`), `GameUpdateBroadcaster` (CDI observer → broadcast).
 - **`pack`** / **`card`** — Panache Active Record entities.
-- **`image`** — S3 wrapper (`ImageService`); bucket name from `game.bucket.name`.
-- **`util`** — exception mappers (`IllegalStateException`→400, `IllegalArgumentException`→404, `NumberFormatException`→400), `JsonSerializationException` (unchecked wrapper for `JsonProcessingException` in WebSocket/CDI-async contexts), `WebSocketTokenFilter` (see Security).
+- **`image`** — `ImageService` (S3 wrapper); bucket from `game.bucket.name`.
+- **`util`** — exception mappers: `IllegalStateException`→400, `IllegalArgumentException`→404, `NumberFormatException`→400, `PlayerConflictException`→409. Plus `JsonSerializationException` (unchecked wrapper for `JsonProcessingException` in WS/CDI-async contexts) and `WebSocketTokenFilter` (see Security).
 
 ### State machine
 
-`GameEngine` is `@ApplicationScoped`. Illegal transitions throw `IllegalStateException` → 400. State-mutating methods are `synchronized`; `getPlayerXCardDTOToGuess` getters aren't (read-only, `PREPARING` only).
+`GameEngine` mutating methods are `synchronized`; state fields are `volatile`. Illegal transitions throw `IllegalStateException` → 400.
 
 ```
 NOT_STARTED → PREPARING      (create)
-PREPARING   → STARTED        (start; both player1/join + player2/join must precede)
+PREPARING   → STARTED        (start; both player1Join + player2Join must precede)
 STARTED     → PLAYER_X_WINS  (playerX/guess with correct cardId)
-PLAYER_X_WINS → NOT_STARTED  (reset)
+PLAYER_X_WINS → NOT_STARTED  (reset; clears subs)
 ```
 
-**Key quirk:** `player1/join` returns the card Player 1 must guess (Player 2's target), and vice versa — cross-assignment is intentional.
+**Player identity.** Each join records the caller's principal name in `player1Sub` / `player2Sub`. If the same sub tries to take the other slot, `player1Join`/`player2Join` throws `PlayerConflictException` → 409. Re-joining the same slot is idempotent. `start()` requires both subs non-null. `GameResource` injects `SecurityIdentity` and passes `identity.getPrincipal().getName()` through.
+
+**Cross-assignment quirk** (lives inside `GameEngine`): `player1Join` returns `player2CardDTOToGuess` and vice versa — i.e. each join returns the card the *other* player must guess. Intentional.
 
 ### WebSocket
 
 | Endpoint | Purpose |
 |----------|---------|
-| `ws://…/ws/game/{gameId}` | Per-game: every state transition + guess result |
-| `ws://…/ws/games` | Lobby: any game created or deleted |
+| `ws://…/ws/game/{gameId}` | Per-game state transitions, joins, guess results |
+| `ws://…/ws/games` | Lobby: game created/deleted |
 
-- **`GameWebSocket`** / **`GamesWebSocket`** — `@WebSocket` classes. Each `@OnOpen` pushes current state to the connecting client (`GameWebSocket` → `STATE_CHANGE` event; `GamesWebSocket` → full `List<GameDTO>`). Subsequent pushes go through `GameUpdateBroadcaster` via `OpenConnections`.
-- **`GameUpdateBroadcaster`** — `@ApplicationScoped` CDI observer (`@ObservesAsync GameUpdateEvent`), filters `OpenConnections` by path param, broadcasts JSON. **Must use `fireAsync()`** — `fire()` only triggers `@Observes` (sync) and never reaches `@ObservesAsync`.
-- **`GameUpdateEvent`** — record `(gameId, type, gameState, correct)`. `@JsonInclude(NON_NULL)` so null fields are omitted.
+- `@OnOpen` pushes current state to the connecting client. Subsequent pushes go through `GameUpdateBroadcaster` via `OpenConnections`.
+- **`GameUpdateBroadcaster`** observes `@ObservesAsync GameUpdateEvent` and filters connections by path param. **Must use `Event.fireAsync()`** — `fire()` only triggers sync `@Observes` and never reaches `@ObservesAsync`.
+- **`GameUpdateEvent`** — record `(gameId, type, gameState, correct, playersJoined)`. `@JsonInclude(NON_NULL)` strips null fields. `playersJoined` is set on `player1Join`/`player2Join` events only.
 
-Events fired from `GameRegistry` after each mutation:
+Events fired from `GameRegistry`:
 
-| Trigger | `type` | Sent to |
+| Trigger | `type` | Channel |
 |---------|--------|---------|
 | `createGame` | `GAME_CREATED` | `/ws/games` |
-| `startGame`, guess, `resetGame` | `STATE_CHANGE` | `/ws/game/{gameId}` |
+| `player1Join`, `player2Join`, `startGame`, guess, `resetGame` | `STATE_CHANGE` | `/ws/game/{gameId}` |
 | `removeGame` | `DELETED` | both |
 
 ### DTOs & misc
 
-`CardDTO`, `GameStatusResponse`, `GameUpdateEvent` are Java Records. Entities/services use Lombok (`@RequiredArgsConstructor`, `@Getter`, …).
+`CardDTO`, `GameStatusResponse`, `GameUpdateEvent` are records. Entities/services use Lombok (`@RequiredArgsConstructor`, `@Getter`, …).
 
 ### Security
 
-OIDC + Keycloak (`quarkus-oidc`). Dev Services auto-provision Keycloak on `quarkus:dev` and import `realm-export.json` (realm: `qui-est-ce`).
+OIDC + Keycloak (`quarkus-oidc`). Dev Services auto-provision Keycloak and import `realm-export.json` (realm: `qui-est-ce`).
 
 | Role | Permissions |
 |------|------------|
-| `player` | Read everything; create/join/start/guess/reset/delete games |
-| `admin` | Composite of `player` + manage packs/cards (CRUD) |
+| `player` | Read all; create/join/start/guess/reset/delete games |
+| `admin` | `player` + manage packs/cards (CRUD) |
 
-Test users (password `password`): `player1`, `player2` (player), `admin` (admin). Get a token via the Keycloak port shown in Dev UI → OpenID Connect card (see README for the curl command).
+Test users (password `password`): `player1`, `player2` (player), `admin` (admin). Token via Keycloak port shown in Dev UI → OpenID Connect card (see README).
 
-**WebSocket auth — important.** Browsers cannot set headers on the `WebSocket` API, so the front sends `?access_token=<jwt>`. Quarkus has **no native config** to read bearer tokens from query strings. `util/WebSocketTokenFilter` is a `@RouteFilter(500)` (provided by `quarkus-reactive-routes`) that copies `?access_token=…` into `Authorization: Bearer …` for `/ws/*` paths *before* the OIDC handler runs. After that, `@Authenticated` works normally. The README has the full explanation; do not "simplify" by removing the filter — both WS endpoints will start returning 401.
+**WebSocket auth.** Browsers can't set headers on the `WebSocket` API, so the front sends `?access_token=<jwt>`. Quarkus has no native config for this. `util/WebSocketTokenFilter` is a `@RouteFilter(500)` that copies `?access_token=…` into `Authorization: Bearer …` for `/ws/*` *before* the OIDC handler. Removing it breaks both WS endpoints (401).
 
 ### CI
 
-Push to `main` → GitHub Actions builds, generates OpenAPI, pushes to `Fileboss/qui-est-ce_back_API` (GitHub Pages). Tests skipped in CI; requires `API_TOKEN_GITHUB` secret.
-
-### Roadmap
-
-- No game state persistence across restarts.
+Push to `main` → GitHub Actions builds, generates OpenAPI, pushes to `Fileboss/qui-est-ce_back_API` (GitHub Pages). Tests skipped in CI; needs `API_TOKEN_GITHUB`.

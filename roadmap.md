@@ -4,7 +4,7 @@ Backlog for taking the `qui-est-ce` backend from "works on my machine" to "runni
 
 ---
 
-## 1. Two distinct players required to start
+## 1. Two distinct players required to start ✅
 
 Currently nothing prevents the same user from calling both `player1/join` and `player2/join`, which would let a single user start a game against themselves.
 

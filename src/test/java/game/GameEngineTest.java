@@ -2,6 +2,7 @@ package game;
 
 import card.CardDTO;
 import org.junit.jupiter.api.Test;
+import util.PlayerConflictException;
 
 import java.util.List;
 
@@ -16,6 +17,9 @@ class GameEngineTest {
     private static final List<CardDTO> DECK = List.of(CARD_1, CARD_2, CARD_3);
     private static final List<CardDTO> SINGLE = List.of(CARD_1);
 
+    private static final String SUB_1 = "user-sub-1";
+    private static final String SUB_2 = "user-sub-2";
+
     private static GameEngine prepared(List<CardDTO> deck) {
         GameEngine e = new GameEngine();
         e.create(deck);
@@ -24,6 +28,8 @@ class GameEngineTest {
 
     private static GameEngine started(List<CardDTO> deck) {
         GameEngine e = prepared(deck);
+        e.player1Join(SUB_1);
+        e.player2Join(SUB_2);
         e.start();
         return e;
     }
@@ -39,8 +45,8 @@ class GameEngineTest {
     @Test
     void create_singleCardDeck_assignsSameTargetToBothPlayers() {
         GameEngine engine = prepared(SINGLE);
-        assertThat(engine.getPlayer1CardDTOToGuess()).isEqualTo(CARD_1);
-        assertThat(engine.getPlayer2CardDTOToGuess()).isEqualTo(CARD_1);
+        assertThat(engine.player1Join(SUB_1)).isEqualTo(CARD_1);
+        assertThat(engine.player2Join(SUB_2)).isEqualTo(CARD_1);
     }
 
     @Test
@@ -72,43 +78,82 @@ class GameEngineTest {
     @Test
     void create_assignsCardsFromDeck_toBothPlayers() {
         GameEngine engine = prepared(DECK);
-        assertThat(engine.getPlayer1CardDTOToGuess()).isIn(DECK);
-        assertThat(engine.getPlayer2CardDTOToGuess()).isIn(DECK);
+        assertThat(engine.player1Join(SUB_1)).isIn(DECK);
+        assertThat(engine.player2Join(SUB_2)).isIn(DECK);
     }
 
     @Test
-    void getPlayer1Card_throws_inNotStarted() {
+    void player1Join_throws_inNotStarted() {
         GameEngine engine = new GameEngine();
-        assertThatThrownBy(engine::getPlayer1CardDTOToGuess)
+        assertThatThrownBy(() -> engine.player1Join(SUB_1))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("being prepared");
     }
 
     @Test
-    void getPlayer2Card_throws_inNotStarted() {
+    void player2Join_throws_inNotStarted() {
         GameEngine engine = new GameEngine();
-        assertThatThrownBy(engine::getPlayer2CardDTOToGuess)
+        assertThatThrownBy(() -> engine.player2Join(SUB_2))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("being prepared");
     }
 
     @Test
-    void getPlayer1Card_throws_inStarted() {
+    void player1Join_throws_inStarted() {
         GameEngine engine = started(DECK);
-        assertThatThrownBy(engine::getPlayer1CardDTOToGuess)
+        assertThatThrownBy(() -> engine.player1Join(SUB_1))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void getPlayer2Card_throws_inStarted() {
+    void player2Join_throws_inStarted() {
         GameEngine engine = started(DECK);
-        assertThatThrownBy(engine::getPlayer2CardDTOToGuess)
+        assertThatThrownBy(() -> engine.player2Join(SUB_2))
                 .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    void start_inPreparing_transitionsToStarted() {
+    void player1Join_throws_whenSameSubAlreadyJoinedAsPlayer2() {
         GameEngine engine = prepared(DECK);
+        engine.player2Join(SUB_1);
+        assertThatThrownBy(() -> engine.player1Join(SUB_1))
+                .isInstanceOf(PlayerConflictException.class)
+                .hasMessageContaining("player 2");
+    }
+
+    @Test
+    void player2Join_throws_whenSameSubAlreadyJoinedAsPlayer1() {
+        GameEngine engine = prepared(DECK);
+        engine.player1Join(SUB_1);
+        assertThatThrownBy(() -> engine.player2Join(SUB_1))
+                .isInstanceOf(PlayerConflictException.class)
+                .hasMessageContaining("player 1");
+    }
+
+    @Test
+    void player1Join_idempotent_whenSameSubRejoinsSameSlot() {
+        GameEngine engine = prepared(DECK);
+        engine.player1Join(SUB_1);
+        // Re-joining the same slot must not throw and the player count stays at 1.
+        engine.player1Join(SUB_1);
+        assertThat(engine.getPlayersJoined()).isEqualTo(1);
+    }
+
+    @Test
+    void getPlayersJoined_reflectsJoinState() {
+        GameEngine engine = prepared(DECK);
+        assertThat(engine.getPlayersJoined()).isZero();
+        engine.player1Join(SUB_1);
+        assertThat(engine.getPlayersJoined()).isEqualTo(1);
+        engine.player2Join(SUB_2);
+        assertThat(engine.getPlayersJoined()).isEqualTo(2);
+    }
+
+    @Test
+    void start_inPreparing_withBothPlayers_transitionsToStarted() {
+        GameEngine engine = prepared(DECK);
+        engine.player1Join(SUB_1);
+        engine.player2Join(SUB_2);
         engine.start();
         assertThat(engine.getGameState()).isEqualTo(GameEngine.GameState.STARTED);
     }
@@ -119,6 +164,32 @@ class GameEngineTest {
         assertThatThrownBy(engine::start)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Can only start a game which is being prepared");
+    }
+
+    @Test
+    void start_throws_whenNoPlayersJoined() {
+        GameEngine engine = prepared(DECK);
+        assertThatThrownBy(engine::start)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot start a game until both players have joined");
+    }
+
+    @Test
+    void start_throws_whenOnlyPlayer1HasJoined() {
+        GameEngine engine = prepared(DECK);
+        engine.player1Join(SUB_1);
+        assertThatThrownBy(engine::start)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot start a game until both players have joined");
+    }
+
+    @Test
+    void start_throws_whenOnlyPlayer2HasJoined() {
+        GameEngine engine = prepared(DECK);
+        engine.player2Join(SUB_2);
+        assertThatThrownBy(engine::start)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Cannot start a game until both players have joined");
     }
 
     @Test
@@ -172,14 +243,13 @@ class GameEngineTest {
     }
 
     @Test
-    void reset_fromPlayer1Wins_clearsCards_andReturnsToNotStarted() {
+    void reset_fromPlayer1Wins_clearsCardsAndSubs_andReturnsToNotStarted() {
         GameEngine engine = started(SINGLE);
         engine.player1Guess(CARD_1.id());
         engine.reset();
         assertThat(engine.getGameState()).isEqualTo(GameEngine.GameState.NOT_STARTED);
         assertThat(engine.getCardDTOs()).isNull();
-        assertThatThrownBy(engine::getPlayer1CardDTOToGuess)
-                .isInstanceOf(IllegalStateException.class);
+        assertThat(engine.getPlayersJoined()).isZero();
     }
 
     @Test
@@ -208,5 +278,18 @@ class GameEngineTest {
     void reset_throws_inStarted() {
         GameEngine engine = started(SINGLE);
         assertThatThrownBy(engine::reset).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void reset_allowsRejoinAfterCreate_withDifferentSubs() {
+        GameEngine engine = started(SINGLE);
+        engine.player1Guess(CARD_1.id());
+        engine.reset();
+        engine.create(SINGLE);
+        // After reset, the same sub may take any slot again.
+        engine.player1Join(SUB_2);
+        engine.player2Join(SUB_1);
+        engine.start();
+        assertThat(engine.getGameState()).isEqualTo(GameEngine.GameState.STARTED);
     }
 }
