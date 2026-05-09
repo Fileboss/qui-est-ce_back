@@ -68,30 +68,16 @@ public class GameRegistry {
         gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
     }
 
-    public CardDTO player1Join(String gameId, String sub) {
+    public CardDTO join(String gameId, String sub) {
         GameEngine engine = getGame(gameId);
-        CardDTO card = engine.player1Join(sub);
+        CardDTO card = engine.join(sub);
         gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, engine.getPlayersJoined()));
         return card;
     }
 
-    public CardDTO player2Join(String gameId, String sub) {
+    public boolean guess(String gameId, String sub, String cardId) {
         GameEngine engine = getGame(gameId);
-        CardDTO card = engine.player2Join(sub);
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, engine.getPlayersJoined()));
-        return card;
-    }
-
-    public boolean player1Guess(String gameId, String cardId) {
-        GameEngine engine = getGame(gameId);
-        boolean correct = engine.player1Guess(cardId);
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), correct, null));
-        return correct;
-    }
-
-    public boolean player2Guess(String gameId, String cardId) {
-        GameEngine engine = getGame(gameId);
-        boolean correct = engine.player2Guess(cardId);
+        boolean correct = engine.guess(sub, cardId);
         gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), correct, null));
         return correct;
     }

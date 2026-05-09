@@ -1,6 +1,7 @@
 package game;
 
 import card.CardDTO;
+import jakarta.ws.rs.ForbiddenException;
 import lombok.Getter;
 import util.PlayerConflictException;
 
@@ -52,35 +53,29 @@ public class GameEngine {
     }
 
     /**
-     * Records the caller as player 1 and returns the card player 1 must guess
-     * (cross-assignment: player2CardDTOToGuess; see CLAUDE.md). Idempotent for the same sub.
-     * Throws {@link PlayerConflictException} if the sub already occupies the player 2 slot.
+     * Assigns the caller to the next free player slot and returns the card they must guess
+     * (cross-assignment: see CLAUDE.md). Idempotent when the same sub re-joins the same slot.
+     * Throws {@link PlayerConflictException} if both slots are already taken by different subs.
      */
-    public synchronized CardDTO player1Join(String sub) {
+    public synchronized CardDTO join(String sub) {
         if (gameState != GameState.PREPARING) {
             throw new IllegalStateException("Can only join a game which is being prepared");
         }
-        if (sub.equals(player2Sub)) {
-            throw new PlayerConflictException("User already joined this game as player 2");
-        }
-        player1Sub = sub;
-        return player2CardDTOToGuess;
-    }
-
-    /**
-     * Records the caller as player 2 and returns the card player 2 must guess
-     * (cross-assignment: player1CardDTOToGuess; see CLAUDE.md). Idempotent for the same sub.
-     * Throws {@link PlayerConflictException} if the sub already occupies the player 1 slot.
-     */
-    public synchronized CardDTO player2Join(String sub) {
-        if (gameState != GameState.PREPARING) {
-            throw new IllegalStateException("Can only join a game which is being prepared");
+        if (player1Sub == null) {
+            player1Sub = sub;
+            return player2CardDTOToGuess;
         }
         if (sub.equals(player1Sub)) {
-            throw new PlayerConflictException("User already joined this game as player 1");
+            return player2CardDTOToGuess;
         }
-        player2Sub = sub;
-        return player1CardDTOToGuess;
+        if (player2Sub == null) {
+            player2Sub = sub;
+            return player1CardDTOToGuess;
+        }
+        if (sub.equals(player2Sub)) {
+            return player1CardDTOToGuess;
+        }
+        throw new PlayerConflictException("Game is full");
     }
 
     /** Number of distinct players that have joined (0, 1, or 2). */
@@ -102,28 +97,26 @@ public class GameEngine {
         gameState = GameState.STARTED;
     }
 
-    /** Evaluates player 1's guess. Returns true and transitions to PLAYER_1_WINS if correct. */
-    public synchronized boolean player1Guess(String cardId) {
+    /** Evaluates the caller's guess, resolving their slot by sub. Returns true if correct. */
+    public synchronized boolean guess(String sub, String cardId) {
         if (gameState != GameState.STARTED) {
             throw new IllegalStateException("Can only guess if the game is started");
         }
-        if (cardId.equals(player1CardDTOToGuess.id())) {
-            gameState = GameState.PLAYER_1_WINS;
-            return true;
+        if (sub.equals(player1Sub)) {
+            if (cardId.equals(player1CardDTOToGuess.id())) {
+                gameState = GameState.PLAYER_1_WINS;
+                return true;
+            }
+            return false;
         }
-        return false;
-    }
-
-    /** Evaluates player 2's guess. Returns true and transitions to PLAYER_2_WINS if correct. */
-    public synchronized boolean player2Guess(String cardId) {
-        if (gameState != GameState.STARTED) {
-            throw new IllegalStateException("Can only guess if the game is started");
+        if (sub.equals(player2Sub)) {
+            if (cardId.equals(player2CardDTOToGuess.id())) {
+                gameState = GameState.PLAYER_2_WINS;
+                return true;
+            }
+            return false;
         }
-        if (cardId.equals(player2CardDTOToGuess.id())) {
-            gameState = GameState.PLAYER_2_WINS;
-            return true;
-        }
-        return false;
+        throw new ForbiddenException("Caller is not a player in this game");
     }
 
     /** Resets the game to NOT_STARTED. Only callable once a player has won. */

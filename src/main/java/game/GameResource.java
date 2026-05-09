@@ -59,22 +59,13 @@ public class GameResource {
         return new GameStatusResponse(SUCCESS, null);
     }
 
-    /** Records the caller as player 1 and returns the card player 1 must guess. */
+    /** Assigns the caller to the next free player slot and returns the card they must guess. */
     @POST
-    @Path("/{gameId}/player1/join")
+    @Path("/{gameId}/join")
     @RolesAllowed("player")
     @Produces(MediaType.APPLICATION_JSON)
-    public CardDTO player1JoinGame(@PathParam("gameId") String gameId) {
-        return gameRegistry.player1Join(gameId, identity.getPrincipal().getName());
-    }
-
-    /** Records the caller as player 2 and returns the card player 2 must guess. */
-    @POST
-    @Path("/{gameId}/player2/join")
-    @RolesAllowed("player")
-    @Produces(MediaType.APPLICATION_JSON)
-    public CardDTO player2JoinGame(@PathParam("gameId") String gameId) {
-        return gameRegistry.player2Join(gameId, identity.getPrincipal().getName());
+    public CardDTO joinGame(@PathParam("gameId") String gameId) {
+        return gameRegistry.join(gameId, identity.getPrincipal().getName());
     }
 
     /** Starts the game after both players have joined. */
@@ -87,23 +78,13 @@ public class GameResource {
         return new GameStatusResponse(SUCCESS, null);
     }
 
-    /** Submits player 1's guess. Returns whether the guess was correct. */
+    /** Submits the caller's guess. Returns whether the guess was correct. */
     @POST
-    @Path("/{gameId}/player1/guess")
+    @Path("/{gameId}/guess")
     @RolesAllowed("player")
     @Produces(MediaType.APPLICATION_JSON)
-    public GameStatusResponse player1Guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
-        boolean isCorrectAnswer = gameRegistry.player1Guess(gameId, cardId);
-        return new GameStatusResponse(SUCCESS, isCorrectAnswer);
-    }
-
-    /** Submits player 2's guess. Returns whether the guess was correct. */
-    @POST
-    @Path("/{gameId}/player2/guess")
-    @RolesAllowed("player")
-    @Produces(MediaType.APPLICATION_JSON)
-    public GameStatusResponse player2Guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
-        boolean isCorrectAnswer = gameRegistry.player2Guess(gameId, cardId);
-        return new GameStatusResponse(SUCCESS, isCorrectAnswer);
+    public GameStatusResponse guess(@PathParam("gameId") String gameId, @QueryParam("cardId") String cardId) {
+        boolean correct = gameRegistry.guess(gameId, identity.getPrincipal().getName(), cardId);
+        return new GameStatusResponse(SUCCESS, correct);
     }
 }
