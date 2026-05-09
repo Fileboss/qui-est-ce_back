@@ -18,7 +18,7 @@ Currently nothing prevents the same user from calling both `player1/join` and `p
 
 ---
 
-## 2. Database migrations (Flyway)
+## 2. Database migrations (Flyway) ✅
 
 Stop relying on `drop-and-create`. Required before any prod data exists.
 
@@ -31,7 +31,7 @@ Stop relying on `drop-and-create`. Required before any prod data exists.
 
 ---
 
-## 3. Production configuration profile
+## 3. Production configuration profile ✅
 
 Externalize everything Dev Services currently provides.
 

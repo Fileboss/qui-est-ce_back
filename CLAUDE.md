@@ -10,7 +10,7 @@
 ./mvnw quarkus:add-extension -Dextensions="<name>"
 ```
 
-Dev Services auto-provision PostgreSQL, MinIO (`game-images` bucket) and Keycloak via Testcontainers. Code must be SonarQube-clean (no blocker/critical/major). Design refs: *DDIA* (Kleppmann), *Effective Java* (Bloch). Roadmap: `ROADMAP.md`.
+Dev Services auto-provision PostgreSQL, MinIO (`game-images` bucket) and Keycloak via Testcontainers. Dev DB container is **reused between restarts** (`%dev.quarkus.datasource.devservices.reuse=true`) — data survives `Ctrl-C` / relaunch. Schema is owned by **Flyway** (`db/migration/`); never let Hibernate generate DDL. Prod profile reads all infra coordinates from env vars — see `.env.example` at the root (run with `QUARKUS_PROFILE=prod`). Code must be SonarQube-clean (no blocker/critical/major). Design refs: *DDIA* (Kleppmann), *Effective Java* (Bloch). Roadmap: `ROADMAP.md`.
 
 ## Architecture
 
@@ -60,6 +60,8 @@ Events fired from `GameRegistry`:
 ### DTOs & misc
 
 `CardDTO`, `GameStatusResponse`, `GameUpdateEvent` are records. Entities/services use Lombok (`@RequiredArgsConstructor`, `@Getter`, …).
+
+**Hibernate naming.** Quarkus 3 uses Hibernate's default passthrough `PhysicalNamingStrategyStandardImpl` — no camelCase→snake_case conversion. `imageUrl` maps to `imageurl` in PostgreSQL (lowercased by the driver, no underscore). Reflect this in any new Flyway migration.
 
 ### Security
 
