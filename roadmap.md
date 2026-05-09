@@ -44,7 +44,7 @@ Externalize everything Dev Services currently provides.
 
 ---
 
-## 4. Startup safety checks
+## 4. Startup safety checks ✅
 
 Two small defensive behaviours needed before running against real infrastructure.
 
