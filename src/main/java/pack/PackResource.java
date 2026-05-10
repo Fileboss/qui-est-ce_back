@@ -53,7 +53,7 @@ public class PackResource {
     @RolesAllowed("admin")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public PackDTO createPack(@Valid PackCreateRequest req) {
+    public PackDTO createPack(@Valid PackRequest req) {
         return packService.createPack(req.packName());
     }
 
@@ -63,7 +63,7 @@ public class PackResource {
     @RolesAllowed("admin")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public PackDTO updatePack(@PathParam("id") long packId, @Valid PackUpdateRequest req) {
+    public PackDTO updatePack(@PathParam("id") long packId, @Valid PackRequest req) {
         return packService.updatePack(packId, req.packName());
     }
 
