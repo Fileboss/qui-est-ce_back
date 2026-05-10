@@ -42,8 +42,12 @@ public class KeycloakAdminService {
             cred.setTemporary(false);
             realmResource.users().get(userId).resetPassword(cred);
 
-            var roleRep = realmResource.roles().get(role).toRepresentation();
-            realmResource.users().get(userId).roles().realmLevel().add(List.of(roleRep));
+            var userRoles = realmResource.users().get(userId).roles().realmLevel();
+            var roleRep = userRoles.listAvailable().stream()
+                    .filter(r -> r.getName().equals(role))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalArgumentException("Unknown role: " + role));
+            userRoles.add(List.of(roleRep));
         }
     }
 }
