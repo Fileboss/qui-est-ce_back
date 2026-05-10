@@ -26,7 +26,7 @@ public class GameRegistry {
         GameEngine engine = new GameEngine();
         engine.create(cards);
         games.put(id, engine);
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(id, "GAME_CREATED", engine.getGameState().toString(), null, null));
+        gameUpdateEvent.fire(new GameUpdateEvent(id, "GAME_CREATED", engine.getGameState().toString(), null, null));
         return new GameDTO(id, engine.getGameState().toString(), engine.getCardDTOs());
     }
 
@@ -50,35 +50,60 @@ public class GameRegistry {
         return Optional.ofNullable(games.get(gameId));
     }
 
-    /** Removes the game with the given id. No-op if the id does not exist. */
+    /** Removes the game with the given id. Fires DELETED unconditionally — front-end relies on this. */
     public void removeGame(String gameId) {
-        games.remove(gameId);
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, "DELETED", null, null, null));
+        GameEngine engine = games.get(gameId);
+        if (engine == null) {
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, "DELETED", null, null, null));
+            return;
+        }
+        synchronized (engine) {
+            games.remove(gameId);
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, "DELETED", null, null, null));
+        }
     }
 
     public void resetGame(String gameId) {
         GameEngine engine = getGame(gameId);
-        engine.reset();
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
+        synchronized (engine) {
+            ensureStillRegistered(gameId);
+            engine.reset();
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
+        }
     }
 
     public void startGame(String gameId) {
         GameEngine engine = getGame(gameId);
-        engine.start();
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
+        synchronized (engine) {
+            ensureStillRegistered(gameId);
+            engine.start();
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
+        }
     }
 
     public CardDTO join(String gameId, String sub) {
         GameEngine engine = getGame(gameId);
-        CardDTO card = engine.join(sub);
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, engine.getPlayersJoined()));
-        return card;
+        synchronized (engine) {
+            ensureStillRegistered(gameId);
+            CardDTO card = engine.join(sub);
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, engine.getPlayersJoined()));
+            return card;
+        }
     }
 
     public boolean guess(String gameId, String sub, String cardId) {
         GameEngine engine = getGame(gameId);
-        boolean correct = engine.guess(sub, cardId);
-        gameUpdateEvent.fireAsync(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), correct, null));
-        return correct;
+        synchronized (engine) {
+            ensureStillRegistered(gameId);
+            boolean correct = engine.guess(sub, cardId);
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), correct, null));
+            return correct;
+        }
+    }
+
+    private void ensureStillRegistered(String gameId) {
+        if (!games.containsKey(gameId)) {
+            throw new IllegalStateException("Game has been deleted: " + gameId);
+        }
     }
 }

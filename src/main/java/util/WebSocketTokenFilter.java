@@ -20,6 +20,10 @@ public class WebSocketTokenFilter {
             String token = rc.request().getParam("access_token");
             if (token != null && !token.isEmpty()) {
                 rc.request().headers().add("Authorization", "Bearer " + token);
+                // Scrub the token from the parsed query map so downstream handlers don't read it.
+                // Note: rc.request().uri() retains the raw query string; access logs on /ws/* must
+                // be disabled or stripped — see application.properties.
+                rc.queryParams().remove("access_token");
             }
         }
         rc.next();

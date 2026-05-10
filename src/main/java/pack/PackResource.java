@@ -5,7 +5,6 @@ import card.CardService;
 import image.ImageService;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
@@ -52,7 +51,6 @@ public class PackResource {
     @Path("/create")
     @POST
     @RolesAllowed("admin")
-    @Transactional
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public PackDTO createPack(@Valid PackCreateRequest req) {
@@ -63,7 +61,6 @@ public class PackResource {
     @PATCH
     @Path("/{id}")
     @RolesAllowed("admin")
-    @Transactional
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public PackDTO updatePack(@PathParam("id") long packId, @Valid PackUpdateRequest req) {
@@ -74,10 +71,8 @@ public class PackResource {
     @DELETE
     @Path("/{id}")
     @RolesAllowed("admin")
-    @Transactional
     public Response deletePack(@PathParam("id") long packId) {
-        List<String> imageUrls = cardService.deleteCardsFromPack(packId);
-        packService.deletePack(packId);
+        List<String> imageUrls = packService.deletePackWithCards(packId);
         imageUrls.forEach(imageService::deleteImage);
         return Response.noContent().build();
     }

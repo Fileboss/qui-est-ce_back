@@ -26,7 +26,7 @@ class AdminResourceTest {
     void createUser_unauthenticated_returns401() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "alice", "password", "securepassword1", "role", "player"))
+            .body(Map.of("username", "alice", "password", "Securepassword1", "role", "player"))
             .when().post("/admin/users")
             .then().statusCode(401);
     }
@@ -36,7 +36,7 @@ class AdminResourceTest {
     void createUser_asPlayer_returns403() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "alice", "password", "securepassword1", "role", "player"))
+            .body(Map.of("username", "alice", "password", "Securepassword1", "role", "player"))
             .when().post("/admin/users")
             .then().statusCode(403);
     }
@@ -46,11 +46,11 @@ class AdminResourceTest {
     void createUser_validPlayerBody_returns201() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "newplayer", "password", "securepassword1", "role", "player"))
+            .body(Map.of("username", "newplayer", "password", "Securepassword1", "role", "player"))
             .when().post("/admin/users")
             .then().statusCode(201);
 
-        Mockito.verify(keycloakAdminService).createUser(eq("newplayer"), eq("securepassword1"), eq("player"));
+        Mockito.verify(keycloakAdminService).createUser("newplayer", "Securepassword1", "player");
     }
 
     @Test
@@ -58,11 +58,11 @@ class AdminResourceTest {
     void createUser_validAdminBody_returns201() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "newadmin", "password", "securepassword1", "role", "admin"))
+            .body(Map.of("username", "newadmin", "password", "Securepassword1", "role", "admin"))
             .when().post("/admin/users")
             .then().statusCode(201);
 
-        Mockito.verify(keycloakAdminService).createUser(eq("newadmin"), eq("securepassword1"), eq("admin"));
+        Mockito.verify(keycloakAdminService).createUser("newadmin", "Securepassword1", "admin");
     }
 
     @Test
@@ -73,7 +73,7 @@ class AdminResourceTest {
 
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "dup", "password", "securepassword1", "role", "player"))
+            .body(Map.of("username", "dup", "password", "Securepassword1", "role", "player"))
             .when().post("/admin/users")
             .then()
                 .statusCode(409)
@@ -95,10 +95,23 @@ class AdminResourceTest {
 
     @Test
     @TestSecurity(user = "admin", roles = "admin")
+    void createUser_passwordMissingComplexity_returns400() {
+        // 12+ chars but no uppercase letter — fails the complexity rule.
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("username", "alice", "password", "alllowercase1", "role", "player"))
+            .when().post("/admin/users")
+            .then().statusCode(400);
+
+        Mockito.verify(keycloakAdminService, Mockito.never()).createUser(any(), any(), any());
+    }
+
+    @Test
+    @TestSecurity(user = "admin", roles = "admin")
     void createUser_usernameTooShort_returns400() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "ab", "password", "securepassword1", "role", "player"))
+            .body(Map.of("username", "ab", "password", "Securepassword1", "role", "player"))
             .when().post("/admin/users")
             .then().statusCode(400);
 
@@ -110,7 +123,7 @@ class AdminResourceTest {
     void createUser_usernameTooLong_returns400() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "a".repeat(31), "password", "securepassword1", "role", "player"))
+            .body(Map.of("username", "a".repeat(31), "password", "Securepassword1", "role", "player"))
             .when().post("/admin/users")
             .then().statusCode(400);
 
@@ -122,7 +135,7 @@ class AdminResourceTest {
     void createUser_invalidRole_returns400() {
         given()
             .contentType(ContentType.JSON)
-            .body(Map.of("username", "alice", "password", "securepassword1", "role", "superuser"))
+            .body(Map.of("username", "alice", "password", "Securepassword1", "role", "superuser"))
             .when().post("/admin/users")
             .then().statusCode(400);
 

@@ -2,9 +2,11 @@ package game;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.quarkus.logging.Log;
 import io.quarkus.websockets.next.OpenConnections;
+import io.quarkus.websockets.next.WebSocketConnection;
 import jakarta.enterprise.context.ApplicationScoped;
-import jakarta.enterprise.event.ObservesAsync;
+import jakarta.enterprise.event.Observes;
 import lombok.RequiredArgsConstructor;
 import util.JsonSerializationException;
 
@@ -15,7 +17,7 @@ public class GameUpdateBroadcaster {
     private final OpenConnections openConnections;
     private final ObjectMapper objectMapper;
 
-    public void onGameUpdate(@ObservesAsync GameUpdateEvent event) {
+    public void onGameUpdate(@Observes GameUpdateEvent event) {
         String json;
         try {
             json = objectMapper.writeValueAsString(event);
@@ -35,12 +37,20 @@ public class GameUpdateBroadcaster {
     private void broadcastToGame(String gameId, String json) {
         openConnections.listAll().stream()
                 .filter(c -> gameId.equals(c.pathParam("gameId")))
-                .forEach(c -> c.sendTextAndAwait(json));
+                .forEach(c -> sendSafely(c, json));
     }
 
     private void broadcastToLobby(String json) {
         openConnections.listAll().stream()
                 .filter(c -> c.pathParam("gameId") == null)
-                .forEach(c -> c.sendTextAndAwait(json));
+                .forEach(c -> sendSafely(c, json));
+    }
+
+    private static void sendSafely(WebSocketConnection c, String json) {
+        try {
+            c.sendTextAndAwait(json);
+        } catch (RuntimeException e) {
+            Log.warnf(e, "WS broadcast failed for connection %s; continuing", c.id());
+        }
     }
 }

@@ -9,16 +9,28 @@ import org.keycloak.representations.idm.UserRepresentation;
 import util.UserConflictException;
 
 import java.util.List;
+import java.util.Set;
 
 @ApplicationScoped
 public class KeycloakAdminService {
 
     private static final String REALM = "qui-est-ce";
+    private static final Set<String> ALLOWED_ROLES = Set.of("player", "admin");
 
+    private final Keycloak keycloak;
+
+    // L'annotation @Inject est optionnelle dans Quarkus s'il n'y a qu'un seul constructeur,
+    // mais il est de bonne pratique de la laisser pour la clarté.
     @Inject
-    Keycloak keycloak;
+    public KeycloakAdminService(Keycloak keycloak) {
+        this.keycloak = keycloak;
+    }
 
     public void createUser(String username, String password, String role) {
+        if (!ALLOWED_ROLES.contains(role)) {
+            throw new IllegalArgumentException("Role not allowed: " + role);
+        }
+
         var realmResource = keycloak.realm(REALM);
 
         var user = new UserRepresentation();
@@ -39,7 +51,7 @@ public class KeycloakAdminService {
             var cred = new CredentialRepresentation();
             cred.setType(CredentialRepresentation.PASSWORD);
             cred.setValue(password);
-            cred.setTemporary(false);
+            cred.setTemporary(true);
             realmResource.users().get(userId).resetPassword(cred);
 
             var userRoles = realmResource.users().get(userId).roles().realmLevel();

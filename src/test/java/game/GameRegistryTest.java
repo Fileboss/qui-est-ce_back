@@ -35,13 +35,13 @@ class GameRegistryTest {
 
     private GameUpdateEvent capturedSingleEvent() {
         ArgumentCaptor<GameUpdateEvent> captor = ArgumentCaptor.forClass(GameUpdateEvent.class);
-        verify(eventBus).fireAsync(captor.capture());
+        verify(eventBus).fire(captor.capture());
         return captor.getValue();
     }
 
     private List<GameUpdateEvent> capturedAllEvents() {
         ArgumentCaptor<GameUpdateEvent> captor = ArgumentCaptor.forClass(GameUpdateEvent.class);
-        verify(eventBus, org.mockito.Mockito.atLeastOnce()).fireAsync(captor.capture());
+        verify(eventBus, org.mockito.Mockito.atLeastOnce()).fire(captor.capture());
         return captor.getAllValues();
     }
 
@@ -124,14 +124,15 @@ class GameRegistryTest {
     @Test
     void removeGame_removesEntry_andFiresDeletedEvent() {
         GameDTO dto = registry.createGame(SINGLE);
-        registry.removeGame(dto.gameId());
+        String gameId = dto.gameId();
+        registry.removeGame(gameId);
 
-        assertThatThrownBy(() -> registry.getGame(dto.gameId()))
+        assertThatThrownBy(() -> registry.getGame(gameId))
                 .isInstanceOf(IllegalArgumentException.class);
 
         GameUpdateEvent deleted = capturedAllEvents().get(1); // [0] = GAME_CREATED, [1] = DELETED
         assertThat(deleted.type()).isEqualTo("DELETED");
-        assertThat(deleted.gameId()).isEqualTo(dto.gameId());
+        assertThat(deleted.gameId()).isEqualTo(gameId);
         assertThat(deleted.gameState()).isNull();
         assertThat(deleted.correct()).isNull();
         assertThat(deleted.playersJoined()).isNull();
@@ -171,7 +172,7 @@ class GameRegistryTest {
 
         assertThat(card).isEqualTo(CARD_1);
         List<GameUpdateEvent> events = capturedAllEvents();
-        GameUpdateEvent secondJoin = events.get(events.size() - 1);
+        GameUpdateEvent secondJoin = events.getLast();
         assertThat(secondJoin.type()).isEqualTo(GameRegistry.STATE_CHANGE);
         assertThat(secondJoin.playersJoined()).isEqualTo(2);
     }
@@ -199,7 +200,7 @@ class GameRegistryTest {
                 .isEqualTo(GameEngine.GameState.STARTED);
 
         List<GameUpdateEvent> events = capturedAllEvents();
-        GameUpdateEvent stateChange = events.get(events.size() - 1);
+        GameUpdateEvent stateChange = events.getLast();
         assertThat(stateChange.type()).isEqualTo(GameRegistry.STATE_CHANGE);
         assertThat(stateChange.gameId()).isEqualTo(gameId);
         assertThat(stateChange.gameState()).isEqualTo("STARTED");
@@ -210,9 +211,10 @@ class GameRegistryTest {
     @Test
     void startGame_throws_whenLessThanTwoPlayersJoined() {
         GameDTO dto = registry.createGame(SINGLE);
-        registry.join(dto.gameId(), SUB_1);
+        String gameId = dto.gameId();
+        registry.join(gameId, SUB_1);
 
-        assertThatThrownBy(() -> registry.startGame(dto.gameId()))
+        assertThatThrownBy(() -> registry.startGame(gameId))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("both players");
     }
@@ -221,7 +223,7 @@ class GameRegistryTest {
     void startGame_throwsIllegalArgumentException_whenIdUnknown_andFiresNoEvent() {
         assertThatThrownBy(() -> registry.startGame("nope"))
                 .isInstanceOf(IllegalArgumentException.class);
-        verify(eventBus, never()).fireAsync(org.mockito.ArgumentMatchers.any());
+        verify(eventBus, never()).fire(org.mockito.ArgumentMatchers.any());
     }
 
     @Test
@@ -236,7 +238,7 @@ class GameRegistryTest {
         assertThat(engine.getCardDTOs()).isNull();
 
         List<GameUpdateEvent> all = capturedAllEvents();
-        GameUpdateEvent last = all.get(all.size() - 1);
+        GameUpdateEvent last = all.getLast();
         assertThat(last.type()).isEqualTo(GameRegistry.STATE_CHANGE);
         assertThat(last.gameState()).isEqualTo("NOT_STARTED");
         assertThat(last.correct()).isNull();
@@ -251,7 +253,7 @@ class GameRegistryTest {
 
         assertThat(result).isTrue();
         List<GameUpdateEvent> events = capturedAllEvents();
-        GameUpdateEvent guessEvent = events.get(events.size() - 1);
+        GameUpdateEvent guessEvent = events.getLast();
         assertThat(guessEvent.type()).isEqualTo(GameRegistry.STATE_CHANGE);
         assertThat(guessEvent.gameState()).isEqualTo("PLAYER_1_WINS");
         assertThat(guessEvent.correct()).isTrue();
@@ -268,7 +270,7 @@ class GameRegistryTest {
         assertThat(registry.getGame(gameId).getGameState())
                 .isEqualTo(GameEngine.GameState.STARTED);
         List<GameUpdateEvent> events = capturedAllEvents();
-        GameUpdateEvent guessEvent = events.get(events.size() - 1);
+        GameUpdateEvent guessEvent = events.getLast();
         assertThat(guessEvent.gameState()).isEqualTo("STARTED");
         assertThat(guessEvent.correct()).isFalse();
     }
@@ -282,7 +284,7 @@ class GameRegistryTest {
 
         assertThat(result).isTrue();
         List<GameUpdateEvent> events = capturedAllEvents();
-        GameUpdateEvent guessEvent = events.get(events.size() - 1);
+        GameUpdateEvent guessEvent = events.getLast();
         assertThat(guessEvent.gameState()).isEqualTo("PLAYER_2_WINS");
         assertThat(guessEvent.correct()).isTrue();
     }

@@ -1,5 +1,7 @@
 package pack;
 
+import card.Card;
+import card.CardRepository;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.NotFoundException;
@@ -13,6 +15,7 @@ import java.util.List;
 public class PackService {
 
     private final PackRepository packRepository;
+    private final CardRepository cardRepository;
 
     /** Creates and persists a new pack with the given name. */
     @Transactional
@@ -49,10 +52,18 @@ public class PackService {
         return toDTO(pack);
     }
 
-    /** Deletes a pack. Returns 404 if not found. */
+    /**
+     * Deletes the pack and all its cards atomically. Returns the image URLs of the
+     * deleted cards so the caller can remove them from S3 after commit.
+     */
     @Transactional
-    public void deletePack(long packId) {
-        packRepository.delete(findById(packId));
+    public List<String> deletePackWithCards(long packId) {
+        Pack pack = findById(packId);
+        List<Card> cards = cardRepository.listByPackId(packId);
+        List<String> imageUrls = cards.stream().map(Card::getImageUrl).toList();
+        cards.forEach(cardRepository::delete);
+        packRepository.delete(pack);
+        return imageUrls;
     }
 
     private static PackDTO toDTO(Pack pack) {

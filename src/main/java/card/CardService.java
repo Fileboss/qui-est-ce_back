@@ -46,15 +46,6 @@ public class CardService {
         return Optional.of(imageUrl);
     }
 
-    /** Deletes all cards belonging to the given pack and returns their image URLs. */
-    @Transactional
-    public List<String> deleteCardsFromPack(long packId) {
-        List<Card> cards = cardRepository.listByPackId(packId);
-        List<String> imageUrls = cards.stream().map(Card::getImageUrl).toList();
-        cards.forEach(cardRepository::delete);
-        return imageUrls;
-    }
-
     private static CardDTO toDTO(Card card) {
         return new CardDTO(
                 String.valueOf(card.getId()),

@@ -5,6 +5,11 @@ import io.vertx.core.http.HttpServerRequest;
 import io.vertx.ext.web.RoutingContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import java.util.stream.Stream;
 
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -18,6 +23,7 @@ class WebSocketTokenFilterTest {
     private RoutingContext rc;
     private HttpServerRequest request;
     private MultiMap headers;
+    private MultiMap queryParams;
 
     @BeforeEach
     void setUp() {
@@ -25,7 +31,9 @@ class WebSocketTokenFilterTest {
         rc = mock(RoutingContext.class);
         request = mock(HttpServerRequest.class);
         headers = mock(MultiMap.class);
+        queryParams = mock(MultiMap.class);
         when(rc.request()).thenReturn(request);
+        when(rc.queryParams()).thenReturn(queryParams);
         when(request.headers()).thenReturn(headers);
     }
 
@@ -38,14 +46,16 @@ class WebSocketTokenFilterTest {
         filter.promoteAccessTokenQueryParamToHeader(rc);
 
         verify(headers).add("Authorization", "Bearer foo");
+        verify(queryParams).remove("access_token");
         verify(rc).next();
     }
 
-    @Test
-    void doesNotOverwrite_whenAuthorizationAlreadyPresent() {
+    @ParameterizedTest(name = "Auth Header: ''{0}'', Token Param: ''{1}''")
+    @MethodSource("provideNoChangeScenarios")
+    void doesNotOverwrite_whenAuthorizationPresentOrTokenInvalid(String authHeader, String accessToken) {
         when(request.path()).thenReturn("/ws/game/abc");
-        when(request.getHeader("Authorization")).thenReturn("Bearer existing");
-        when(request.getParam("access_token")).thenReturn("foo");
+        when(request.getHeader("Authorization")).thenReturn(authHeader);
+        when(request.getParam("access_token")).thenReturn(accessToken);
 
         filter.promoteAccessTokenQueryParamToHeader(rc);
 
@@ -53,28 +63,12 @@ class WebSocketTokenFilterTest {
         verify(rc).next();
     }
 
-    @Test
-    void noChange_whenAccessTokenMissing() {
-        when(request.path()).thenReturn("/ws/game/abc");
-        when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getParam("access_token")).thenReturn(null);
-
-        filter.promoteAccessTokenQueryParamToHeader(rc);
-
-        verify(headers, never()).add(anyString(), anyString());
-        verify(rc).next();
-    }
-
-    @Test
-    void noChange_whenAccessTokenIsEmptyString() {
-        when(request.path()).thenReturn("/ws/game/abc");
-        when(request.getHeader("Authorization")).thenReturn(null);
-        when(request.getParam("access_token")).thenReturn("");
-
-        filter.promoteAccessTokenQueryParamToHeader(rc);
-
-        verify(headers, never()).add(anyString(), anyString());
-        verify(rc).next();
+    private static Stream<Arguments> provideNoChangeScenarios() {
+        return Stream.of(
+                Arguments.of("Bearer existing", "foo"), // Authorization already present
+                Arguments.of(null, null),               // access_token missing
+                Arguments.of(null, "")                  // access_token is empty string
+        );
     }
 
     @Test
