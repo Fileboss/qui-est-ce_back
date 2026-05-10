@@ -91,13 +91,28 @@ Single `docker-compose.yml` in an infra repo (or `infra/` folder) describing the
 - Internal Docker network — only Caddy publishes ports 80/443.
 - `restart: unless-stopped` on everything.
 - All secrets in a `.env` file (gitignored), referenced as `${VAR}` in the compose file.
-- Caddyfile: TLS auto for `app.`, `api.`, `auth.`, `s3.` — reverse proxy to the right internal service.
+- Caddyfile: TLS auto for `qui-est-qui.lepgu.fr`, `api.qui-est-qui.lepgu.fr`, `auth.qui-est-qui.lepgu.fr`, `s3.qui-est-qui.lepgu.fr` — reverse proxy to the right internal service.
 
-**Done when:** `docker compose up -d` on the VPS brings the whole stack up and `https://app.<domain>` loads the frontend.
+**Done when:** `docker compose up -d` on the VPS brings the whole stack up and `https://qui-est-qui.lepgu.fr` loads the frontend.
 
 ---
 
-## 8. CI/CD: build and push image, deploy to VPS
+## 8. Admin-only user creation endpoint ✅
+
+Minimum viable user management for the first deploy — avoid sending people through the Keycloak admin console to create accounts. Self-registration, email verification, and password reset come later (separate task).
+
+- The first admin user is created manually via the Keycloak admin console once the stack is up (already documented in the infra repo's first-boot README).
+- Add `POST /admin/users` — body `{ username, password, role }` where `role` is `player` or `admin`. Username 3–30 chars, password ≥ 12 chars; reject duplicates with 409 and weak input with 400.
+- Endpoint guarded by `@RolesAllowed("admin")`. Non-admins get 403.
+- Implementation calls the Keycloak Admin REST API: create user, set credentials (non-temporary), assign realm role. The `qui-est-ce-back` client already has `serviceAccountsEnabled: true` — grant its service account the `realm-management` client role `manage-users` in `realm-export-prod.json` so it can manage the realm without an extra admin login.
+- No `User` entity yet — that comes in task 16. The Keycloak account is enough; the back's profile row materializes lazily on first authenticated request once that task lands.
+- Tests: `player` token → 403; `admin` token + valid body → 201; duplicate username → 409; weak password → 400.
+
+**Done when:** an admin can create new accounts via the API without touching the Keycloak admin console, and those accounts can immediately log in via the frontend.
+
+---
+
+## 9. CI/CD: build and push image, deploy to VPS
 
 Right now CI only publishes OpenAPI docs. There's no path from `git push` to production.
 
@@ -110,7 +125,7 @@ Right now CI only publishes OpenAPI docs. There's no path from `git push` to pro
 
 ---
 
-## 9. WebSocket auth via subprotocol
+## 10. WebSocket auth via subprotocol
 
 Replace `?access_token=<jwt>` with the subprotocol approach to stop leaking tokens into logs.
 
@@ -123,7 +138,7 @@ Replace `?access_token=<jwt>` with the subprotocol approach to stop leaking toke
 
 ---
 
-## 10. Prod HTTP hardening: CORS and body size limits
+## 11. Prod HTTP hardening: CORS and body size limits
 
 Two small config-level defences that should be explicit rather than relying on the reverse proxy.
 
@@ -135,7 +150,7 @@ Two small config-level defences that should be explicit rather than relying on t
 
 ---
 
-## 11. In-game live text chat
+## 12. In-game live text chat
 
 Players in a game room can send messages to each other in real time. Nothing is persisted — messages exist only as long as the WebSocket session lives.
 
@@ -150,7 +165,7 @@ Players in a game room can send messages to each other in real time. Nothing is 
 
 ---
 
-## 12. Observability: structured logs and basic metrics
+## 13. Observability: structured logs and basic metrics
 
 For when something breaks at 11pm.
 
@@ -163,7 +178,7 @@ For when something breaks at 11pm.
 
 ---
 
-## 13. Backup strategy
+## 14. Backup strategy
 
 Documented and automated, even at small scale.
 
@@ -176,7 +191,7 @@ Documented and automated, even at small scale.
 
 ---
 
-## 14. Game state persistence
+## 15. Game state persistence
 
 In-memory `GameRegistry` loses all state on restart.
 
@@ -188,7 +203,7 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
-## 15. User entity
+## 16. User entity
 
 - Add a `User` entity: `id`, `keycloak_sub` (unique, indexed), `display_name`, `avatar_url` (nullable), `created_at`, `updated_at`.
 - Sync from JWT on first authenticated request — no manual signup. Pull `sub`, `preferred_username`, and `name` from the token; create the user row lazily.
@@ -200,7 +215,7 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
-## 16. Pack and card ownership
+## 17. Pack and card ownership
 
 - Add `owner_id` FK on `Pack` (cards inherit ownership through their pack).
 - Repositories: list/get/create/update/delete scoped to the authenticated user. `admin` keeps full access.
@@ -211,7 +226,7 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
-## 17. Identity-based join endpoint (requires task 15)
+## 18. Identity-based join endpoint (requires task 16)
 
 Replace the two position-based join endpoints with a single identity-aware one.
 
@@ -225,7 +240,7 @@ Replace the two position-based join endpoints with a single identity-aware one.
 
 ---
 
-## 18. Identity-based guess and reset (requires task 17)
+## 19. Identity-based guess and reset (requires task 18)
 
 Complete the identity migration by replacing the remaining position-based action endpoints.
 
@@ -242,6 +257,6 @@ Complete the identity migration by replacing the remaining position-based action
 
 - Tasks 1–4 can happen on a feature branch before any infra exists.
 - Tasks 5–6 are human ops steps (Keycloak realm + VPS setup).
-- Tasks 7–8 are the "first deploy" milestone — once 8 is done, the loop is closed.
-- Tasks 9–14 harden the prod environment and can be tackled incrementally after first deploy.
-- Tasks 15–18 bring full user identity into the game model; they depend on task 2 (Flyway) being in place.
+- Tasks 7–9 are the "first deploy" milestone — once 9 is done, the loop is closed (8 unblocks real users without manual Keycloak admin clicks).
+- Tasks 10–15 harden the prod environment and can be tackled incrementally after first deploy.
+- Tasks 16–19 bring full user identity into the game model; they depend on task 2 (Flyway) being in place.

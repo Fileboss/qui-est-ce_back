@@ -49,4 +49,23 @@ class AuthorizationTest {
             .when().delete("/card/1")
             .then().statusCode(403);
     }
+
+    @Test
+    void createUser_unauthenticated_returns401() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("username", "x", "password", "y", "role", "player"))
+            .when().post("/admin/users")
+            .then().statusCode(401);
+    }
+
+    @Test
+    @TestSecurity(user = "bob", roles = "player")
+    void createUser_asPlayer_returns403() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("username", "x", "password", "y", "role", "player"))
+            .when().post("/admin/users")
+            .then().statusCode(403);
+    }
 }
