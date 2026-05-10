@@ -76,6 +76,19 @@ Test users (password `password`): `player1`, `player2` (player), `admin` (admin)
 
 **WebSocket auth.** Browsers can't set headers on the `WebSocket` API, so the front sends `?access_token=<jwt>`. Quarkus has no native config for this. `util/WebSocketTokenFilter` is a `@RouteFilter(500)` that copies `?access_token=…` into `Authorization: Bearer …` for `/ws/*` *before* the OIDC handler. Removing it breaks both WS endpoints (401).
 
+### Production deployment
+
+VPS: Fedora 43 cloud (`fedora` sudoer, SSH key only, password & root login disabled, firewalld 22/80/443, `dnf5-automatic.timer` with `apply_updates=yes`, weekly OVH snapshots). Domain `lepgu.fr` (OVH); root reserved for a future portfolio — all app hostnames nested under `qui-est-qui.lepgu.fr`:
+
+| Service | Public URL |
+|---------|-----------|
+| Frontend | `qui-est-qui.lepgu.fr` |
+| Backend (REST + WS) | `api.qui-est-qui.lepgu.fr` |
+| Keycloak | `auth.qui-est-qui.lepgu.fr` |
+| MinIO | `s3.qui-est-qui.lepgu.fr` |
+
+These names lock in the Caddyfile site blocks, `OIDC_AUTH_SERVER_URL` (`https://auth.qui-est-qui.lepgu.fr/realms/qui-est-ce`), Keycloak realm redirect URIs / web origins, CORS origins, and the frontend API base URL — keep them in sync if changed. Stack runs as Docker Compose (Caddy + back + Keycloak + Postgres + MinIO); see roadmap task 7.
+
 ### CI
 
 Push to `main` → GitHub Actions builds, generates OpenAPI, pushes to `Fileboss/qui-est-ce_back_API` (GitHub Pages). Tests skipped in CI; needs `API_TOKEN_GITHUB`.

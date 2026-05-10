@@ -188,6 +188,70 @@ Ainsi `@Authenticated` et les rôles continuent de fonctionner exactement comme 
 
 ---
 
+## 🌐 Déploiement VPS
+
+### Hôte
+
+VPS Fedora 43 (cloud minimal) — utilisateur `fedora` (sudoer), accès SSH par clé uniquement (`PasswordAuthentication no`, `PermitRootLogin no`). Pare-feu `firewalld` ouvrant 22/80/443. Mises à jour de sécurité automatiques via `dnf5-automatic.timer` (`apply_updates = yes`). Docker + Docker Compose installés. Snapshots hebdomadaires activés côté hébergeur.
+
+### Domaines (production)
+
+Domaine : `lepgu.fr` (OVH). La racine est réservée à un futur portfolio — toutes les URL applicatives sont nichées sous `qui-est-qui.lepgu.fr` :
+
+| Service | URL |
+|---------|-----|
+| Frontend | `https://qui-est-qui.lepgu.fr` |
+| Backend (REST + WebSocket) | `https://api.qui-est-qui.lepgu.fr` |
+| Keycloak | `https://auth.qui-est-qui.lepgu.fr` |
+| MinIO (URLs d'images) | `https://s3.qui-est-qui.lepgu.fr` |
+
+Enregistrements DNS (A) : `qui-est-qui`, `api.qui-est-qui`, `auth.qui-est-qui`, `s3.qui-est-qui` → IP du VPS. TLS automatique via Let's Encrypt (Caddy, voir tâche 7 du roadmap).
+
+> Ce schéma de nommage est verrouillé dans : Caddyfile, `OIDC_AUTH_SERVER_URL`, `redirectUris` / `webOrigins` du realm Keycloak, `quarkus.http.cors.origins`, et l'URL de base de l'API côté front. Tout changement doit être propagé partout.
+
+---
+
+## 🔐 Configuration Keycloak en production
+
+Le fichier `src/main/resources/realm-export-prod.json` est un template du realm `qui-est-ce` prêt pour la production. Il ne contient **aucun utilisateur de test, aucun secret réel et aucune URI wildcard** — seulement des placeholders à remplacer.
+
+### Import automatique au premier démarrage
+
+Le fichier est conçu pour être importé via le flag `--import-realm` de Keycloak (v21+). En pratique, cela sera câblé dans le Docker Compose (tâche 7). Le comportement est le suivant :
+
+- **Premier démarrage** : Keycloak crée le realm `qui-est-ce` à partir du fichier.
+- **Redémarrages suivants** : Keycloak détecte que le realm existe déjà et ignore l'import silencieusement.
+
+### Étapes post-premier démarrage
+
+1. **Vérifier les URIs** : le template référence `qui-est-qui.lepgu.fr` (frontend) et `auth.qui-est-qui.lepgu.fr` (Keycloak). Si le domaine de prod change, mettre à jour les `redirectUris` / `webOrigins` du client `qui-est-ce-back` dans l'interface admin.
+
+2. **Régénérer le secret client** :
+   Le placeholder `REPLACE_WITH_PROD_SECRET` est importé littéralement. **Avant de démarrer le backend**, aller dans l'interface admin Keycloak :
+   > Clients → `qui-est-ce-back` → Credentials → Regenerate
+   
+   Copier la nouvelle valeur et la mettre dans `OIDC_CLIENT_SECRET` dans le fichier `.env` du VPS.
+
+3. **Configurer les variables d'environnement** dans `.env` :
+   ```env
+   OIDC_AUTH_SERVER_URL=https://auth.qui-est-qui.lepgu.fr/realms/qui-est-ce
+   OIDC_CLIENT_SECRET=<valeur régénérée à l'étape 2>
+   ```
+
+4. **Vérifier** que le realm répond :
+   ```bash
+   curl https://auth.qui-est-qui.lepgu.fr/realms/qui-est-ce/.well-known/openid-configuration
+   # → 200 avec "issuer" correspondant à OIDC_AUTH_SERVER_URL
+   ```
+
+### Créer les premiers utilisateurs
+
+Aucun utilisateur n'est inclus dans le template. Les créer dans la console admin Keycloak :
+
+> Users → Add user → username → Save → Credentials (mot de passe non temporaire) → Role Mappings (rôle `admin` ou `player`)
+
+---
+
 ## 🔌 Mises à jour en temps réel (WebSocket)
 
 Deux endpoints WebSocket permettent aux clients de recevoir les changements d'état sans polling :

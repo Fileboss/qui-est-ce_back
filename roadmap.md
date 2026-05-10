@@ -55,7 +55,7 @@ Two small defensive behaviours needed before running against real infrastructure
 
 ---
 
-## 5. Production Keycloak realm
+## 5. Production Keycloak realm ✅
 
 The committed `realm-export.json` has `dev-secret`, wildcard redirect URIs, and three users with password `password`. Unfit for prod.
 
@@ -67,7 +67,7 @@ The committed `realm-export.json` has `dev-secret`, wildcard redirect URIs, and 
 
 ---
 
-## 6. Rent and configure VPS
+## 6. Rent and configure VPS ✅
 
 Pick a provider and prepare the host. Plan for ~4GB RAM (Keycloak alone needs ~1GB).
 
