@@ -59,9 +59,9 @@ Two small defensive behaviours needed before running against real infrastructure
 
 The committed `realm-export.json` has `dev-secret`, wildcard redirect URIs, and three users with password `password`. Unfit for prod.
 
-- Create a separate `realm-export-prod.json` (or set up the realm manually post-deploy) with: real client secret (env var, not committed), exact redirect URIs (`https://app.<domain>/*`), real `webOrigins`, no test users.
-- Decide: import realm on Keycloak startup, or configure manually via Keycloak admin UI on first boot. Manual is simpler at this scale.
-- Document the manual setup steps in README so it's reproducible.
+- Create a separate `realm-export-prod.json` with: client-secret placeholder (real value injected via env var), exact redirect URIs (`https://qui-est-qui.lepgu.fr/*`), real `webOrigins`, no test users.
+- Import the realm on Keycloak startup via `--import-realm` (wired in the Compose stack — task 7). Imports run only on first boot; subsequent restarts skip silently.
+- Document the post-import manual steps in README (regenerate client secret, set `.env`, create first users) so the deployment is reproducible.
 
 **Done when:** prod Keycloak has zero hardcoded users, the client secret is in an env var, and redirect URIs are locked to the prod frontend domain.
 
