@@ -213,42 +213,69 @@ Enregistrements DNS (A) : `qui-est-qui`, `api.qui-est-qui`, `auth.qui-est-qui`, 
 
 ## 🔐 Configuration Keycloak en production
 
-Le fichier `src/main/resources/realm-export-prod.json` est un template du realm `qui-est-ce` prêt pour la production. Il ne contient **aucun utilisateur de test, aucun secret réel et aucune URI wildcard** — seulement des placeholders à remplacer.
+Le fichier `src/main/resources/realm-export-prod.json` est un template du realm `qui-est-ce` prêt pour la production. Il ne contient **aucun utilisateur de test, aucun secret littéral et aucune URI wildcard**. Les secrets sont injectés au moment de l'import via les variables d'environnement du conteneur Keycloak (`${OIDC_CLIENT_SECRET}`, `${KEYCLOAK_ADMIN_SECRET}`).
+
+### Modèle à deux clients (séparation des privilèges)
+
+| Client | Rôle | Secret |
+|--------|------|--------|
+| `qui-est-ce-back` | Resource server OIDC — valide les tokens entrants. Aucun rôle admin. | `OIDC_CLIENT_SECRET` |
+| `qui-est-ce-admin` | Client machine-to-machine — service-account avec `realm-management/manage-users` pour `POST /admin/users`. | `KEYCLOAK_ADMIN_SECRET` |
+| `qui-est-ce-front` | Client public utilisé par le SPA (flow standard, audience mapper vers `qui-est-ce-back`). | — |
+
+Cette séparation garantit qu'une fuite du secret côté front-channel (`qui-est-ce-back`) ne donne pas accès à la création d'utilisateurs.
 
 ### Import automatique au premier démarrage
 
-Le fichier est conçu pour être importé via le flag `--import-realm` de Keycloak (v21+). En pratique, cela sera câblé dans le Docker Compose (tâche 7). Le comportement est le suivant :
+Le fichier est importé via le flag `--import-realm` de Keycloak (v21+), câblé dans le Docker Compose (tâche 7). Comportement :
 
-- **Premier démarrage** : Keycloak crée le realm `qui-est-ce` à partir du fichier.
-- **Redémarrages suivants** : Keycloak détecte que le realm existe déjà et ignore l'import silencieusement.
+- **Premier démarrage** : Keycloak résout `${OIDC_CLIENT_SECRET}` et `${KEYCLOAK_ADMIN_SECRET}` depuis ses variables d'environnement et crée le realm avec ces valeurs.
+- **Redémarrages suivants** : Keycloak détecte que le realm existe déjà et ignore l'import silencieusement (les secrets stockés en base ne bougent pas).
 
-### Étapes post-premier démarrage
+### Premier déploiement — étape par étape
 
-1. **Vérifier les URIs** : le template référence `qui-est-qui.lepgu.fr` (frontend) et `auth.qui-est-qui.lepgu.fr` (Keycloak). Si le domaine de prod change, mettre à jour les `redirectUris` / `webOrigins` du client `qui-est-ce-back` dans l'interface admin.
-
-2. **Régénérer le secret client** :
-   Le placeholder `REPLACE_WITH_PROD_SECRET` est importé littéralement. **Avant de démarrer le backend**, aller dans l'interface admin Keycloak :
-   > Clients → `qui-est-ce-back` → Credentials → Regenerate
-   
-   Copier la nouvelle valeur et la mettre dans `OIDC_CLIENT_SECRET` dans le fichier `.env` du VPS.
-
-3. **Configurer les variables d'environnement** dans `.env` :
-   ```env
-   OIDC_AUTH_SERVER_URL=https://auth.qui-est-qui.lepgu.fr/realms/qui-est-ce
-   OIDC_CLIENT_SECRET=<valeur régénérée à l'étape 2>
+1. **Générer deux secrets distincts** :
+   ```bash
+   openssl rand -hex 32   # → OIDC_CLIENT_SECRET
+   openssl rand -hex 32   # → KEYCLOAK_ADMIN_SECRET
    ```
 
-4. **Vérifier** que le realm répond :
+2. **Renseigner `.env`** (à partir de `.env.example`) :
+   ```env
+   OIDC_AUTH_SERVER_URL=https://auth.qui-est-qui.lepgu.fr/realms/qui-est-ce
+   OIDC_CLIENT_SECRET=<valeur 1>
+   KEYCLOAK_ADMIN_SECRET=<valeur 2>
+   KEYCLOAK_URL=https://auth.qui-est-qui.lepgu.fr
+   # … + variables DB / S3
+   ```
+
+3. **Câbler les deux secrets côté Keycloak** : dans le `docker-compose.yml` (tâche 7), exposer `OIDC_CLIENT_SECRET` et `KEYCLOAK_ADMIN_SECRET` au conteneur Keycloak via son bloc `environment:`. Sans cela, l'import littéralisera `${OIDC_CLIENT_SECRET}` comme valeur de secret — invalide.
+
+4. **Démarrer la stack** :
+   ```bash
+   docker compose up -d
+   ```
+   Au premier boot, Keycloak importe le realm avec les deux secrets résolus. Le backend démarre ensuite : son `SecretGuard` (`src/main/java/admin/SecretGuard.java`) avorte le démarrage si l'une des variables est vide, vaut un placeholder (`change_me`, `dev-secret`, `REPLACE_WITH_PROD_SECRET`) ou est identique à l'autre.
+
+5. **Vérifier que le realm répond** :
    ```bash
    curl https://auth.qui-est-qui.lepgu.fr/realms/qui-est-ce/.well-known/openid-configuration
    # → 200 avec "issuer" correspondant à OIDC_AUTH_SERVER_URL
    ```
 
-### Créer les premiers utilisateurs
+6. **Créer le premier administrateur** : aucun utilisateur n'est inclus dans le template. Se connecter à la console admin Keycloak (master realm, identifiants bootstrap définis via `KEYCLOAK_ADMIN`/`KEYCLOAK_ADMIN_PASSWORD` au premier démarrage) et créer manuellement un utilisateur du realm `qui-est-ce` avec le rôle `admin` :
 
-Aucun utilisateur n'est inclus dans le template. Les créer dans la console admin Keycloak :
+   > Realm `qui-est-ce` → Users → Add user → username → Save → Credentials (mot de passe non temporaire) → Role mapping → `admin`
 
-> Users → Add user → username → Save → Credentials (mot de passe non temporaire) → Role Mappings (rôle `admin` ou `player`)
+   À partir de là, tout nouvel utilisateur passe par `POST /admin/users` (tâche 8 du roadmap).
+
+### Rotation d'un secret
+
+Pour faire tourner l'un des secrets après le premier déploiement :
+
+1. Régénérer le secret dans la console admin Keycloak (`Clients → <client> → Credentials → Regenerate`).
+2. Mettre à jour la variable correspondante dans `.env`.
+3. Redémarrer le backend (`docker compose restart back`). Le `SecretGuard` valide la nouvelle valeur au boot.
 
 ---
 

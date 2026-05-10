@@ -65,6 +65,8 @@ The committed `realm-export.json` has `dev-secret`, wildcard redirect URIs, and 
 
 **Done when:** prod Keycloak has zero hardcoded users, the client secret is in an env var, and redirect URIs are locked to the prod frontend domain.
 
+> *Post-review amendment (privilege separation).* The single `qui-est-ce-back` client was split into two: `qui-est-ce-back` (token validation only, no service-account roles) and `qui-est-ce-admin` (service-account holding `realm-management/manage-users` for `POST /admin/users`). Both secrets are resolved by Keycloak from `${OIDC_CLIENT_SECRET}` and `${KEYCLOAK_ADMIN_SECRET}` at realm-import time — no manual admin-UI regen step. The backend's `SecretGuard` (`src/main/java/admin/SecretGuard.java`) fails fast on empty, placeholder, or duplicated values. See README "🔐 Configuration Keycloak en production" for the full first-deploy walkthrough.
+
 ---
 
 ## 6. Rent and configure VPS ✅
