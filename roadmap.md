@@ -83,7 +83,7 @@ Pick a provider and prepare the host. Plan for ~4GB RAM (Keycloak alone needs ~1
 
 ---
 
-## 7. Docker Compose stack
+## 7. Docker Compose stack ✅
 
 Single `docker-compose.yml` in an infra repo (or `infra/` folder) describing the full stack.
 
