@@ -9,6 +9,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.net.URI;
 import java.util.Arrays;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Service for uploading card images to S3 and resolving their public URLs. */
@@ -17,12 +18,12 @@ public class ImageService {
 
     private final S3Client s3;
     private final String bucketName;
-    private final String publicBaseUrl;
+    private final Optional<String> publicBaseUrl;
 
     public ImageService(
             S3Client s3,
             @ConfigProperty(name = "game.bucket.name") String bucketName,
-            @ConfigProperty(name = "game.image.public-base-url", defaultValue = "") String publicBaseUrl) {
+            @ConfigProperty(name = "game.image.public-base-url") Optional<String> publicBaseUrl) {
         this.s3 = s3;
         this.bucketName = bucketName;
         this.publicBaseUrl = publicBaseUrl;
@@ -49,10 +50,9 @@ public class ImageService {
         // In prod the S3 endpoint is the Docker-internal http://minio:9000, which the
         // browser can't resolve and would also trigger mixed-content. Override with a
         // public, https base URL (e.g. https://s3.qui-est-qui.lepgu.fr) when configured.
-        if (!publicBaseUrl.isEmpty()) {
-            return publicBaseUrl + "/" + bucketName + "/" + key;
-        }
-        return s3.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
+        return publicBaseUrl
+                .map(base -> base + "/" + bucketName + "/" + key)
+                .orElseGet(() -> s3.utilities().getUrl(b -> b.bucket(bucketName).key(key)).toExternalForm());
     }
 
     /** Deletes the S3 object whose URL was returned by {@link #getImageUrl}. */
