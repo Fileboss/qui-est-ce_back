@@ -91,4 +91,11 @@ These names lock in the Caddyfile site blocks, `OIDC_AUTH_SERVER_URL` (`https://
 
 ### CI
 
-Push to `main` → GitHub Actions builds, generates OpenAPI, pushes to `Fileboss/qui-est-ce_back_API` (GitHub Pages). Tests skipped in CI; needs `API_TOKEN_GITHUB`.
+Push to `main` triggers two workflows:
+
+- `deploy-swagger.yml` — skips tests, builds, publishes OpenAPI to `Fileboss/qui-est-ce_back_API` (GitHub Pages). Needs `API_TOKEN_GITHUB`.
+- `build-and-push.yml` — runs full tests, builds the JVM image via `src/main/docker/Dockerfile.jvm`, pushes to `ghcr.io/fileboss/qui-est-ce-back:{latest,sha-<short>}` via `GITHUB_TOKEN` (no PAT). Tests rely on LocalStack — pinned to `localstack/localstack:3` in `application.properties` because the `:latest` tag now requires a paid license. SSH-deploy-to-VPS step is not yet automated; updates are pulled manually (`docker compose pull back && docker compose up -d back`).
+
+### Image URLs (prod)
+
+`ImageService.getImageUrl()` reads optional `game.image.public-base-url` (env `S3_PUBLIC_BASE_URL`). When set, image links use that base instead of the internal `quarkus.s3.endpoint-override` — necessary because the in-cluster S3 endpoint (`http://minio:9000`) is unreachable from browsers and triggers mixed-content under HTTPS. Empty in dev/test → fallback to `s3.utilities().getUrl(...)` against LocalStack.

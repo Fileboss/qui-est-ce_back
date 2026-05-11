@@ -114,16 +114,22 @@ Minimum viable user management for the first deploy — avoid sending people thr
 
 ---
 
-## 9. CI/CD: build and push image, deploy to VPS
+## 9. CI/CD: build and push image, deploy to VPS ✅ (build half) / ⏳ (deploy half)
 
 Right now CI only publishes OpenAPI docs. There's no path from `git push` to production.
 
-- Add a workflow that on push to `main`: builds a Docker image, pushes to GHCR (`ghcr.io/fileboss/qui-est-ce-back:<sha>` and `:latest`).
-- Decide: native image (smaller, slower build) or JVM image (faster build, more RAM). Start with JVM, switch to native if RAM gets tight.
-- Deploy step: SSH to VPS, `docker compose pull && docker compose up -d back`. Use a deploy SSH key stored as a GitHub secret.
-- Run tests in CI before building (currently skipped — re-enable now that the suite has been expanded).
+- Add a workflow that on push to `main`: builds a Docker image, pushes to GHCR (`ghcr.io/fileboss/qui-est-ce-back:<sha>` and `:latest`). ✅
+- Decide: native image (smaller, slower build) or JVM image (faster build, more RAM). Start with JVM, switch to native if RAM gets tight. ✅ (JVM, via `src/main/docker/Dockerfile.jvm`)
+- Deploy step: SSH to VPS, `docker compose pull && docker compose up -d back`. Use a deploy SSH key stored as a GitHub secret. ⏳ (still manual: `git pull && docker compose pull && docker compose up -d` on the VPS)
+- Run tests in CI before building (currently skipped — re-enable now that the suite has been expanded). ✅
 
 **Done when:** pushing to `main` results in the new version running on the VPS within ~5 minutes, automatically.
+
+> *Status (2026-05-11).* First production deploy is live on `qui-est-qui.lepgu.fr`. The `qui-est-ce_back` and `qui-est-ce_front` workflows build, test, and push images to GHCR on every push to `main`. The SSH deploy step is still pending — for now, updates are applied manually on the VPS. Several non-roadmap fixes were needed along the way and are worth flagging:
+>
+> - **Back:** `LocalStack:latest` was switched to a pro-licensed image; pinned `quarkus.aws.devservices.localstack.image-name=localstack/localstack:3`. Image URLs returned to the browser now derive from `S3_PUBLIC_BASE_URL` (e.g. `https://s3.qui-est-qui.lepgu.fr`) instead of the internal `http://minio:9000` endpoint.
+> - **Infra:** Realm export now defines a separate `qui-est-ce-admin` client (M2M, `manage-users`); both client secrets resolve at realm-import time via `${OIDC_CLIENT_SECRET}` / `${KEYCLOAK_ADMIN_SECRET}` substitution against the Keycloak container env. Keycloak runs without `--optimized` so the build-time options apply at startup. The Keycloak healthcheck now uses HTTP/1.0 to force `Connection: close`. Caddy routes `/api/*` and `/ws/*` on the front domain to the back so the browser sees one origin, mirroring the dev `proxy.conf.json` (with `handle_path` stripping `/api`).
+> - **Front:** Keycloak URL split into `environment.ts` / `environment.prod.ts` with Angular `fileReplacements`; prod bundle points at `https://auth.qui-est-qui.lepgu.fr`.
 
 ---
 
