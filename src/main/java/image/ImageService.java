@@ -17,10 +17,15 @@ public class ImageService {
 
     private final S3Client s3;
     private final String bucketName;
+    private final String publicBaseUrl;
 
-    public ImageService(S3Client s3, @ConfigProperty(name = "game.bucket.name") String bucketName) {
+    public ImageService(
+            S3Client s3,
+            @ConfigProperty(name = "game.bucket.name") String bucketName,
+            @ConfigProperty(name = "game.image.public-base-url", defaultValue = "") String publicBaseUrl) {
         this.s3 = s3;
         this.bucketName = bucketName;
+        this.publicBaseUrl = publicBaseUrl;
     }
 
     /** Uploads raw image bytes to S3 and returns the generated object key. */
@@ -41,6 +46,12 @@ public class ImageService {
 
     /** Returns the public URL for the S3 object identified by the given key. */
     public String getImageUrl(String key) {
+        // In prod the S3 endpoint is the Docker-internal http://minio:9000, which the
+        // browser can't resolve and would also trigger mixed-content. Override with a
+        // public, https base URL (e.g. https://s3.qui-est-qui.lepgu.fr) when configured.
+        if (!publicBaseUrl.isEmpty()) {
+            return publicBaseUrl + "/" + bucketName + "/" + key;
+        }
         return s3.utilities().getUrl(builder -> builder.bucket(bucketName).key(key)).toExternalForm();
     }
 
