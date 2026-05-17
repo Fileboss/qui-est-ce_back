@@ -133,14 +133,14 @@ Right now CI only publishes OpenAPI docs. There's no path from `git push` to pro
 
 ---
 
-## 10. WebSocket auth via subprotocol
+## 10. WebSocket auth via subprotocol ✅ (back) / ⏳ (front coordination)
 
-Replace `?access_token=<jwt>` with the subprotocol approach to stop leaking tokens into logs.
+Replaced `?access_token=<jwt>` with the `Sec-WebSocket-Protocol` subprotocol approach to stop leaking tokens into logs.
 
-- Frontend sends token as a WS subprotocol header (the only header browsers allow on WS).
-- Replace `WebSocketTokenFilter` logic to read from the `Sec-WebSocket-Protocol` header instead of the query string.
-- Update README docs.
-- Coordinate with frontend change.
+- Frontend sends two subprotocols: `bearer-token-carrier` (a fixed carrier name the server echoes back) and `quarkus-http-upgrade#Authorization#Bearer <token>` (URI-encoded). ✅ (back ready)
+- Enabled `quarkus.websockets-next.server.propagate-subprotocol-headers=true` and `quarkus.websockets-next.server.supported-subprotocols=bearer-token-carrier`. Deleted `WebSocketTokenFilter` and dropped the `quarkus-reactive-routes` dependency. ✅
+- Updated README and CLAUDE.md. ✅
+- Frontend change still required — the back deploy on its own will break existing WS clients. ⏳
 
 **Done when:** access logs no longer contain JWTs, and both `/ws/game/*` and `/ws/games` still authenticate correctly.
 

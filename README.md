@@ -109,7 +109,7 @@ Quarkus est un framework Java "Cloud Native" (Subatomic & Supersonic Java) pens�
 * **Cloud & Stockage :** `quarkus-amazon-s3`, `software.amazon.awssdk`
 * **Web & API :** `quarkus-rest-jackson`, `quarkus-smallrye-openapi` (génération automatique du Swagger)
 * **Sécurité :** `quarkus-oidc` (Keycloak, Dev Services intégré)
-* **WebSocket :** `quarkus-websockets-next`, `quarkus-reactive-routes` (filtre `@RouteFilter` pour l'auth WS)
+* **WebSocket :** `quarkus-websockets-next` (auth via sous-protocole `Sec-WebSocket-Protocol`)
 * **Tests :** `quarkus-junit5-mockito`, `rest-assured`
 * **Utilitaires :** `lombok`
 
@@ -154,37 +154,32 @@ Utilisateurs de test (mot de passe `password`) : `player1`, `player2` (rôle : j
 
 **REST :** ajouter le header `Authorization: Bearer <token>` à chaque requête.
 
-**WebSocket :** passer le token en query param lors de la connexion :
+**WebSocket :** passer le token via le header `Sec-WebSocket-Protocol` (le seul header que l'API JavaScript `WebSocket` autorise sur un handshake). Côté frontend :
+
+```js
+const carrier = encodeURIComponent("quarkus-http-upgrade#Authorization#Bearer " + token);
+const ws = new WebSocket(url, ["bearer-token-carrier", carrier]);
+```
+
+Avec `wscat` :
 ```bash
-wscat -c "ws://localhost:8080/ws/games?access_token=<token>"
+ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" \
+  "quarkus-http-upgrade#Authorization#Bearer $TOKEN")
+wscat -c "ws://localhost:8080/ws/games" -s "bearer-token-carrier,$ENC"
 ```
 
 #### Comment ça marche côté Quarkus
 
-Les navigateurs n'autorisent pas l'envoi d'un header `Authorization` sur l'API JavaScript `WebSocket`, ce qui force à passer le JWT en query param. Or **Quarkus n'a pas de propriété de configuration native** pour lire un bearer token depuis la query string : sans intervention, le mécanisme OIDC ne voit aucun credential et renvoie **401** sur le handshake.
+Les navigateurs n'autorisent pas l'envoi d'un header `Authorization` sur l'API JavaScript `WebSocket`. Quarkus `websockets-next` fournit un mécanisme natif : un sous-protocole de la forme `quarkus-http-upgrade#<HeaderName>#<HeaderValue>` (URI-encodé) est extrait du `Sec-WebSocket-Protocol` puis promu en header HTTP **avant** que le handler OIDC ne s'exécute. Le JWT n'apparaît donc jamais dans l'URL ni les logs d'accès.
 
-Deux options officielles existent :
+Configuration (`application.properties`) :
 
-1. **Sous-protocole WebSocket** (recommandé par Quarkus) : le client envoie `quarkus-http-upgrade#Authorization#Bearer <token>` comme sous-protocole. Côté serveur, activer `quarkus.websockets-next.server.propagate-subprotocol-headers=true`. Plus sûr (le token n'apparaît pas dans l'URL ni les logs) mais demande une adaptation du client.
-2. **Filtre de route Vert.x** (utilisé ici) : un `@RouteFilter` promeut `?access_token=…` vers un header `Authorization: Bearer …` avant que le handler de sécurité ne s'exécute. Voir `util/WebSocketTokenFilter.java`. Nécessite l'extension `quarkus-reactive-routes`.
-
-Le filtre retenu est minimal :
-
-```java
-@RouteFilter(500)               // priorité > handler de sécurité OIDC
-void promoteAccessTokenQueryParamToHeader(RoutingContext rc) {
-    if (rc.request().path().startsWith("/ws/")
-            && rc.request().getHeader("Authorization") == null) {
-        String token = rc.request().getParam("access_token");
-        if (token != null && !token.isEmpty()) {
-            rc.request().headers().add("Authorization", "Bearer " + token);
-        }
-    }
-    rc.next();
-}
+```properties
+quarkus.websockets-next.server.propagate-subprotocol-headers=true
+quarkus.websockets-next.server.supported-subprotocols=bearer-token-carrier
 ```
 
-Ainsi `@Authenticated` et les rôles continuent de fonctionner exactement comme pour les endpoints REST.
+Le client envoie deux sous-protocoles : `bearer-token-carrier` (un nom factice que le serveur renvoie pour clore le handshake conformément à la RFC 6455) et `quarkus-http-upgrade#Authorization#Bearer <token>` (URI-encodé, porteur du JWT). Le serveur retire le sous-protocole `quarkus-http-upgrade#…`, injecte le header `Authorization`, et renvoie `bearer-token-carrier` au client. `@Authenticated` et les rôles fonctionnent ensuite exactement comme sur les endpoints REST.
 
 ---
 
@@ -280,11 +275,15 @@ Deux endpoints WebSocket permettent aux clients de recevoir les changements d'é
 # Installer wscat
 npm install -g wscat
 
+# Encoder le porteur JWT en sous-protocole (URI-encodé, espace -> %20, # -> %23)
+ENC=$(python3 -c "import urllib.parse,sys;print(urllib.parse.quote(sys.argv[1]))" \
+  "quarkus-http-upgrade#Authorization#Bearer $TOKEN")
+
 # Se connecter au lobby (avec token)
-wscat -c "ws://localhost:8080/ws/games?access_token=<token>"
+wscat -c "ws://localhost:8080/ws/games" -s "bearer-token-carrier,$ENC"
 
 # Se connecter à une partie spécifique (avec token)
-wscat -c "ws://localhost:8080/ws/game/<gameId>?access_token=<token>"
+wscat -c "ws://localhost:8080/ws/game/<gameId>" -s "bearer-token-carrier,$ENC"
 ```
 
 ---

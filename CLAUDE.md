@@ -21,7 +21,7 @@ REST + WebSocket backend for a 2-player "Guess Who" game. In-memory; one `GameEn
 - **`game`** — `GameEngine` (state machine, no persistence), `GameRegistry` (`@ApplicationScoped` map of engines + event firing), `GameResource` (REST), `GameWebSocket` (`/ws/game/{gameId}`), `GamesWebSocket` (`/ws/games`), `GameUpdateBroadcaster` (CDI observer → broadcast).
 - **`pack`** / **`card`** — Panache Active Record entities.
 - **`image`** — `ImageService` (S3 wrapper); bucket from `game.bucket.name`.
-- **`util`** — exception mappers: `IllegalStateException`→400, `IllegalArgumentException`→404, `NumberFormatException`→400, `PlayerConflictException`→409. Plus `JsonSerializationException` (unchecked wrapper for `JsonProcessingException` in WS/CDI-async contexts) and `WebSocketTokenFilter` (see Security).
+- **`util`** — exception mappers: `IllegalStateException`→400, `IllegalArgumentException`→404, `NumberFormatException`→400, `PlayerConflictException`→409. Plus `JsonSerializationException` (unchecked wrapper for `JsonProcessingException` in WS/CDI-async contexts).
 
 ### State machine
 
@@ -74,7 +74,7 @@ OIDC + Keycloak (`quarkus-oidc`). Dev Services auto-provision Keycloak and impor
 
 Test users (password `password`): `player1`, `player2` (player), `admin` (admin). Token via Keycloak port shown in Dev UI → OpenID Connect card (see README).
 
-**WebSocket auth.** Browsers can't set headers on the `WebSocket` API, so the front sends `?access_token=<jwt>`. Quarkus has no native config for this. `util/WebSocketTokenFilter` is a `@RouteFilter(500)` that copies `?access_token=…` into `Authorization: Bearer …` for `/ws/*` *before* the OIDC handler. Removing it breaks both WS endpoints (401).
+**WebSocket auth.** Browsers can't set headers on the `WebSocket` API. The front sends two subprotocols: `bearer-token-carrier` and `quarkus-http-upgrade#Authorization#Bearer <jwt>` (URI-encoded). Quarkus `websockets-next` extracts the second one and injects `Authorization: Bearer <jwt>` before the OIDC handler runs — enabled by `quarkus.websockets-next.server.propagate-subprotocol-headers=true` and `quarkus.websockets-next.server.supported-subprotocols=bearer-token-carrier` in `application.properties`. The token never appears in the URI, so `/ws/*` access logs are safe to enable.
 
 ### Production deployment
 
