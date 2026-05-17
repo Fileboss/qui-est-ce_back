@@ -158,7 +158,41 @@ Two small config-level defences that should be explicit rather than relying on t
 
 ---
 
-## 12. In-game live text chat
+## 12. Admin user management — auto-generated passwords, list, reset, delete
+
+Sharpen the admin flow from task 8. Today the admin types both username *and* password into the form, which leaks the credential through the browser/clipboard and is error-prone. Keycloak also requires email + first/last name on user creation by default — unnecessary friction for a friends-only game.
+
+- `POST /admin/users` — drop `password` from the request body. The server generates a strong random password (≥ 16 chars, mixed case + digits + symbols) and returns it once in the 201 response so the admin can hand it off out-of-band. `UPDATE_PASSWORD` is already a required action, so the user is forced to rotate it on first login.
+- `GET /admin/users` — list realm users (`id`, `username`, `enabled`, `createdTimestamp`, realm roles). Pass through Keycloak's `first`/`max` pagination params; cap `max` at 100.
+- `POST /admin/users/{id}/reset-password` — generate a fresh random password, re-arm `UPDATE_PASSWORD`, return the new password in the response. Old credentials stop working immediately.
+- `DELETE /admin/users/{id}` — delete the user from Keycloak. Refuse to delete the caller's own account (400) to avoid an admin locking themselves out.
+- Realm export: turn off the email / firstName / lastName requirements in the user-profile config so the admin endpoint and the Keycloak account-console screens don't demand them. Username + password is enough.
+- All four endpoints stay behind `@RolesAllowed("admin")`; non-admins get 403.
+- Tests: non-admin → 403 on each endpoint; create returns 201 with a non-empty `generatedPassword` field and the account can log in with it (then is forced through `UPDATE_PASSWORD`); list includes the freshly created user and respects `first`/`max`; reset returns a new password and the previous one is rejected by Keycloak; delete removes the user, second delete returns 404, self-delete returns 400.
+
+**Done when:** admins can create (with auto-generated password), list, reset, and delete user accounts via the API without opening the Keycloak admin console, and new users are not prompted for email or name on first login.
+
+---
+
+## 13. Pagination (slicing) across list endpoints
+
+Several list endpoints currently return everything in one shot. Cheap today, but a foot-gun once a real user has hundreds of packs or the admin user list grows. Standardize on a simple offset/limit slice everywhere it's useful, so the front can lazy-load and the back is not forced to renegotiate the contract later.
+
+- Single convention: `?first=<int>&max=<int>` (mirrors the Keycloak admin API used in task 12). `first` defaults to 0, `max` defaults to 20, hard-capped at 100. Negative values → 400.
+- Return a small wrapper `{ items, first, max, total }` so the front can render "N of M". `total` runs a `count()` query — fine for current volumes.
+- Endpoints to slice:
+  - `GET /packs` (pack picker)
+  - `GET /packs/{id}/cards` (when a pack is opened in the editor)
+  - `GET /games` (lobby — currently returns every game regardless of state)
+  - `GET /admin/users` (introduced in task 12 — return the same wrapper rather than the raw Keycloak list)
+- Default ordering must be deterministic (e.g. `createdAt DESC, id DESC`) so pages don't shuffle between calls.
+- Tests per endpoint: default page returns up to `max` items in stable order; `first=<n>` skips correctly; `max>100` is clamped; negative values → 400; `total` matches an unpaginated count.
+
+**Done when:** every list endpoint accepts `first` / `max`, returns a `{ items, first, max, total }` wrapper with stable ordering, and the front can scroll a multi-page list without the server returning the full set.
+
+---
+
+## 14. In-game live text chat
 
 Players in a game room can send messages to each other in real time. Nothing is persisted — messages exist only as long as the WebSocket session lives.
 
@@ -173,7 +207,7 @@ Players in a game room can send messages to each other in real time. Nothing is 
 
 ---
 
-## 13. Observability: structured logs and basic metrics
+## 15. Observability: structured logs and basic metrics
 
 For when something breaks at 11pm.
 
@@ -186,7 +220,7 @@ For when something breaks at 11pm.
 
 ---
 
-## 14. Backup strategy
+## 16. Backup strategy
 
 Documented and automated, even at small scale.
 
@@ -199,7 +233,7 @@ Documented and automated, even at small scale.
 
 ---
 
-## 15. Game state persistence
+## 17. Game state persistence
 
 In-memory `GameRegistry` loses all state on restart.
 
@@ -211,7 +245,7 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
-## 16. User entity
+## 18. User entity
 
 - Add a `User` entity: `id`, `keycloak_sub` (unique, indexed), `display_name`, `avatar_url` (nullable), `created_at`, `updated_at`.
 - Sync from JWT on first authenticated request — no manual signup. Pull `sub`, `preferred_username`, and `name` from the token; create the user row lazily.
@@ -223,7 +257,7 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
-## 17. Pack and card ownership
+## 19. Pack and card ownership
 
 - Add `owner_id` FK on `Pack` (cards inherit ownership through their pack).
 - Repositories: list/get/create/update/delete scoped to the authenticated user. `admin` keeps full access.
@@ -234,7 +268,7 @@ In-memory `GameRegistry` loses all state on restart.
 
 ---
 
-## 18. Identity-based join endpoint (requires task 16)
+## 20. Identity-based join endpoint (requires task 18)
 
 Replace the two position-based join endpoints with a single identity-aware one.
 
@@ -248,7 +282,7 @@ Replace the two position-based join endpoints with a single identity-aware one.
 
 ---
 
-## 19. Identity-based guess and reset (requires task 18)
+## 21. Identity-based guess and reset (requires task 20)
 
 Complete the identity migration by replacing the remaining position-based action endpoints.
 
@@ -261,9 +295,9 @@ Complete the identity migration by replacing the remaining position-based action
 
 ---
 
-## 20. Rate-limit `/api/*` at the reverse proxy
+## 22. Rate-limit `/api/*` at the reverse proxy
 
-Defensive layer against runaway-loop clients and brute-force probing. Low priority for the current friends-only audience but worth doing once observability (task 13) is in place so spikes are visible. Promoted out of task 11.
+Defensive layer against runaway-loop clients and brute-force probing. Low priority for the current friends-only audience but worth doing once observability (task 15) is in place so spikes are visible. Promoted out of task 11.
 
 - Caddy core does not ship a `rate_limit` directive — requires the `mholt/caddy-ratelimit` community plugin + a custom Caddy build via xcaddy. Bake the xcaddy step into the infra repo's image build.
 - Two zones at minimum: a per-IP cap on `/api/*` (e.g. 60 req/min) and a tighter one on any auth-adjacent paths.
@@ -279,6 +313,6 @@ Defensive layer against runaway-loop clients and brute-force probing. Low priori
 - Tasks 1–4 can happen on a feature branch before any infra exists.
 - Tasks 5–6 are human ops steps (Keycloak realm + VPS setup).
 - Tasks 7–9 are the "first deploy" milestone — once 9 is done, the loop is closed (8 unblocks real users without manual Keycloak admin clicks).
-- Tasks 10–15 harden the prod environment and can be tackled incrementally after first deploy.
-- Tasks 16–19 bring full user identity into the game model; they depend on task 2 (Flyway) being in place.
-- Task 20 is post-MVP operational polish — defer until observability (13) is in place.
+- Tasks 10–17 harden the prod environment and can be tackled incrementally after first deploy.
+- Tasks 18–21 bring full user identity into the game model; they depend on task 2 (Flyway) being in place.
+- Task 22 is post-MVP operational polish — defer until observability (15) is in place.
