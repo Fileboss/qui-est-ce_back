@@ -76,6 +76,8 @@ Test users (password `password`): `player1`, `player2` (player), `admin` (admin)
 
 **WebSocket auth.** Browsers can't set headers on the `WebSocket` API. The front sends two subprotocols: `bearer-token-carrier` and `quarkus-http-upgrade#Authorization#Bearer <jwt>` (URI-encoded). Quarkus `websockets-next` extracts the second one and injects `Authorization: Bearer <jwt>` before the OIDC handler runs — enabled by `quarkus.websockets-next.server.propagate-subprotocol-headers=true` and `quarkus.websockets-next.server.supported-subprotocols=bearer-token-carrier` in `application.properties`. The token never appears in the URI, so `/ws/*` access logs are safe to enable.
 
+**CORS.** Armed globally — `quarkus.http.cors.enabled=true` is fixed at build time. Origin allowlist comes from `${CORS_ALLOWED_ORIGINS:https://qui-est-qui.lepgu.fr}` (defaults to the prod front domain; cross-origin requests from anywhere else are denied, including in dev/test where the front talks to the back same-origin anyway). Prod overrides via env. Methods `GET,POST,PATCH,DELETE,OPTIONS`, headers `Authorization,Content-Type`, exposed `Location`. Bearer-only auth → credentials stays false.
+
 ### Production deployment
 
 VPS: Fedora 43 cloud (`fedora` sudoer, SSH key only, password & root login disabled, firewalld 22/80/443, `dnf5-automatic.timer` with `apply_updates=yes`, weekly OVH snapshots). Domain `lepgu.fr` (OVH); root reserved for a future portfolio — all app hostnames nested under `qui-est-qui.lepgu.fr`:

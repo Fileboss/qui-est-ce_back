@@ -133,7 +133,7 @@ Right now CI only publishes OpenAPI docs. There's no path from `git push` to pro
 
 ---
 
-## 10. WebSocket auth via subprotocol ✅ (back) / ⏳ (front coordination)
+## 10. WebSocket auth via subprotocol ✅
 
 Replaced `?access_token=<jwt>` with the `Sec-WebSocket-Protocol` subprotocol approach to stop leaking tokens into logs.
 
@@ -146,15 +146,15 @@ Replaced `?access_token=<jwt>` with the `Sec-WebSocket-Protocol` subprotocol app
 
 ---
 
-## 11. Prod HTTP hardening: CORS and body size limits
+## 11. Prod HTTP hardening: CORS and body size limits ✅
 
 Two small config-level defences that should be explicit rather than relying on the reverse proxy.
 
-- **CORS:** configure `quarkus.http.cors.origins=https://app.<domain>` for `%prod`. Allow only the methods/headers actually needed.
-- **Body size:** configure `quarkus.http.limits.max-body-size` (e.g. 5MB) for image uploads. Add a max-image-size check in `ImageService` before writing to S3.
-- Optional: rate limit at Caddy level (Caddy has a `rate_limit` module) on `/api/*` to avoid runaway loops from a buggy frontend.
+- **Body size** — already enforced before this task: `quarkus.http.limits.max-body-size=5M` is global, and `CardResource.createCard` checks `form.image.size() > MAX_IMAGE_BYTES` and throws `BadRequestException`. The constant moved to `ImageService.MAX_IMAGE_BYTES` so it lives next to the S3 boundary; `CardResource` now references it. Oversize coverage is `CardResourceTest.createCard_returns400Or413_whenImageTooLarge`. ✅
+- **CORS** — armed globally (`quarkus.http.cors.enabled=true` is build-time-fixed). Origin allowlist comes from `${CORS_ALLOWED_ORIGINS:https://qui-est-qui.lepgu.fr}` — defaults to the prod front domain, prod overrides via env. Dev/test inherit the same default but are unaffected because the front talks to the back same-origin via the Angular proxy / Caddy path-routing. Methods limited to `GET,POST,PATCH,DELETE,OPTIONS`; allowed headers `Authorization,Content-Type`; `Location` exposed. Credentials stays false — bearer-only auth. Coverage: `CorsPreflightTest`. ✅
+- **Rate limit at Caddy** — promoted out of this task into roadmap task 20. Requires `mholt/caddy-ratelimit` + a custom Caddy build via xcaddy, and is low priority for the current friends-only audience.
 
-**Done when:** a browser request from any non-prod origin is blocked, uploading a 100MB file is rejected with a clear error, and there is a documented per-IP request ceiling.
+**Done when:** a browser request from a non-allowlisted origin sees no `Access-Control-Allow-Origin` header, an oversize upload is rejected with a clear error, and the rate-limit follow-up is tracked separately.
 
 ---
 
@@ -261,6 +261,19 @@ Complete the identity migration by replacing the remaining position-based action
 
 ---
 
+## 20. Rate-limit `/api/*` at the reverse proxy
+
+Defensive layer against runaway-loop clients and brute-force probing. Low priority for the current friends-only audience but worth doing once observability (task 13) is in place so spikes are visible. Promoted out of task 11.
+
+- Caddy core does not ship a `rate_limit` directive — requires the `mholt/caddy-ratelimit` community plugin + a custom Caddy build via xcaddy. Bake the xcaddy step into the infra repo's image build.
+- Two zones at minimum: a per-IP cap on `/api/*` (e.g. 60 req/min) and a tighter one on any auth-adjacent paths.
+- Surface 429s in metrics (Prometheus counter on the back, or Caddy's own metrics) so persistent throttling is visible.
+- Document the limits and how to tune them in the infra README.
+
+**Done when:** a script hammering `/api/*` from one IP gets 429 after the documented threshold and the event is visible in metrics.
+
+---
+
 ## Notes
 
 - Tasks 1–4 can happen on a feature branch before any infra exists.
@@ -268,3 +281,4 @@ Complete the identity migration by replacing the remaining position-based action
 - Tasks 7–9 are the "first deploy" milestone — once 9 is done, the loop is closed (8 unblocks real users without manual Keycloak admin clicks).
 - Tasks 10–15 harden the prod environment and can be tackled incrementally after first deploy.
 - Tasks 16–19 bring full user identity into the game model; they depend on task 2 (Flyway) being in place.
+- Task 20 is post-MVP operational polish — defer until observability (13) is in place.

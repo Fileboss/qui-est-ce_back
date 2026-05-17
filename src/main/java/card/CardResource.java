@@ -22,7 +22,6 @@ import java.nio.file.Files;
 public class CardResource {
 
     private static final Logger log = Logger.getLogger(CardResource.class);
-    private static final long MAX_IMAGE_BYTES = 5_000_000L;
 
     private final CardService cardService;
     private final ImageService imageService;
@@ -57,7 +56,7 @@ public class CardResource {
         if (form.image == null || form.image.fileName() == null) {
             throw new BadRequestException("Une image est obligatoire");
         }
-        if (form.image.size() > MAX_IMAGE_BYTES) {
+        if (form.image.size() > ImageService.MAX_IMAGE_BYTES) {
             throw new BadRequestException("Image too large");
         }
 

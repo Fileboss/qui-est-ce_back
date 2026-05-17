@@ -16,6 +16,13 @@ import java.util.UUID;
 @ApplicationScoped
 public class ImageService {
 
+    /**
+     * Maximum size of an uploaded card image. Enforced at the resource layer
+     * (CardResource) before the bytes are materialized, and matches the global
+     * {@code quarkus.http.limits.max-body-size} so a non-multipart bypass also hits the cap.
+     */
+    public static final long MAX_IMAGE_BYTES = 5_000_000L;
+
     private final S3Client s3;
     private final String bucketName;
     private final Optional<String> publicBaseUrl;
