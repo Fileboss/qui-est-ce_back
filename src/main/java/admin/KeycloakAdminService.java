@@ -1,5 +1,6 @@
 package admin;
 
+import io.quarkus.logging.Log;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
@@ -11,13 +12,11 @@ import org.keycloak.representations.idm.UserRepresentation;
 import util.UserConflictException;
 
 import java.util.List;
-import java.util.Set;
 
 @ApplicationScoped
 public class KeycloakAdminService {
 
     private static final String REALM = "qui-est-ce";
-    private static final Set<String> ALLOWED_ROLES = Set.of("player", "admin");
 
     private final Keycloak keycloak;
 
@@ -27,10 +26,6 @@ public class KeycloakAdminService {
     }
 
     public UserCreateResponse createUser(String username, String role) {
-        if (!ALLOWED_ROLES.contains(role)) {
-            throw new IllegalArgumentException("Role not allowed: " + role);
-        }
-
         RealmResource realmResource = keycloak.realm(REALM);
 
         var user = new UserRepresentation();
@@ -49,17 +44,26 @@ public class KeycloakAdminService {
             userId = location.substring(location.lastIndexOf('/') + 1);
         }
 
-        String generatedPassword = PasswordGenerator.generate();
-        setTemporaryPassword(userId, generatedPassword);
+        try {
+            String generatedPassword = PasswordGenerator.generate();
+            setTemporaryPassword(userId, generatedPassword);
 
-        var userRoles = realmResource.users().get(userId).roles().realmLevel();
-        var roleRep = userRoles.listAvailable().stream()
-                .filter(r -> r.getName().equals(role))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Unknown role: " + role));
-        userRoles.add(List.of(roleRep));
+            var userRoles = realmResource.users().get(userId).roles().realmLevel();
+            var roleRep = userRoles.listAvailable().stream()
+                    .filter(r -> r.getName().equals(role))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Realm role missing: " + role));
+            userRoles.add(List.of(roleRep));
 
-        return new UserCreateResponse(userId, username, generatedPassword);
+            return new UserCreateResponse(userId, username, generatedPassword);
+        } catch (RuntimeException e) {
+            try {
+                realmResource.users().get(userId).remove();
+            } catch (RuntimeException cleanup) {
+                Log.warnf(cleanup, "Failed to roll back orphan Keycloak user %s after create failure", userId);
+            }
+            throw e;
+        }
     }
 
     public List<UserSummary> listUsers(int first, int max) {

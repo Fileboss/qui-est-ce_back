@@ -17,8 +17,12 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 
 import java.util.List;
+import java.util.Objects;
 
 @Path("/admin")
 @RolesAllowed("admin")
@@ -34,6 +38,10 @@ public class AdminResource {
     @Path("/users")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @APIResponse(responseCode = "201",
+        content = @Content(schema = @Schema(implementation = UserCreateResponse.class)))
+    @APIResponse(responseCode = "400", description = "Invalid request body")
+    @APIResponse(responseCode = "409", description = "Username already exists")
     public Response createUser(@Valid UserCreateRequest req) {
         UserCreateResponse created = keycloakAdminService.createUser(req.username(), req.role());
         return Response.status(Response.Status.CREATED).entity(created).build();
@@ -58,7 +66,7 @@ public class AdminResource {
     @DELETE
     @Path("/users/{id}")
     public Response deleteUser(@PathParam("id") String id) {
-        if (id.equals(jwt.getSubject())) {
+        if (Objects.equals(jwt.getSubject(), id)) {
             throw new IllegalStateException("Cannot delete your own account");
         }
         keycloakAdminService.deleteUser(id);

@@ -158,7 +158,7 @@ Two small config-level defences that should be explicit rather than relying on t
 
 ---
 
-## 12. Admin user management — auto-generated passwords, list, reset, delete
+## 12. Admin user management — auto-generated passwords, list, reset, delete ✅
 
 Sharpen the admin flow from task 8. Today the admin types both username *and* password into the form, which leaks the credential through the browser/clipboard and is error-prone. Keycloak also requires email + first/last name on user creation by default — unnecessary friction for a friends-only game.
 
