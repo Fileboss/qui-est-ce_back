@@ -5,6 +5,7 @@ import jakarta.ws.rs.ForbiddenException;
 import lombok.Getter;
 import util.PlayerConflictException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Random;
 
@@ -30,6 +31,8 @@ public class GameEngine {
     private volatile GameState gameState = GameState.NOT_STARTED;
     @Getter
     private volatile List<CardDTO> cardDTOs;
+    @Getter
+    private final Instant createdAt = Instant.now();
 
     private volatile CardDTO player1CardDTOToGuess;
     private volatile CardDTO player2CardDTOToGuess;

@@ -174,7 +174,7 @@ Sharpen the admin flow from task 8. Today the admin types both username *and* pa
 
 ---
 
-## 13. Pagination (slicing) across list endpoints
+## 13. Pagination (slicing) across list endpoints ✅
 
 Several list endpoints currently return everything in one shot. Cheap today, but a foot-gun once a real user has hundreds of packs or the admin user list grows. Standardize on a simple offset/limit slice everywhere it's useful, so the front can lazy-load and the back is not forced to renegotiate the contract later.
 

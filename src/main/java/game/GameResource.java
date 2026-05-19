@@ -5,10 +5,13 @@ import card.CardService;
 import io.quarkus.security.Authenticated;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+import util.PageResponse;
 
 import java.util.List;
 
@@ -26,8 +29,10 @@ public class GameResource {
     @GET
     @Authenticated
     @Produces(MediaType.APPLICATION_JSON)
-    public List<GameDTO> getAll() {
-        return gameRegistry.findAll();
+    public PageResponse<GameDTO> getAll(
+            @QueryParam("first") @DefaultValue("0") @Min(0) int first,
+            @QueryParam("max") @DefaultValue("20") @Min(0) @Max(100) int max) {
+        return gameRegistry.findPage(first, max);
     }
 
     /** Creates a new game from the given pack and returns its id and card pack. */

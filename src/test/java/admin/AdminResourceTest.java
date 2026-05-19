@@ -8,6 +8,7 @@ import io.quarkus.test.security.oidc.OidcSecurity;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import util.PageResponse;
 import util.UserConflictException;
 
 import java.util.List;
@@ -151,33 +152,41 @@ class AdminResourceTest {
     @TestSecurity(user = "admin", roles = "admin")
     void listUsers_asAdmin_returnsList() {
         Mockito.when(keycloakAdminService.listUsers(0, 20))
-               .thenReturn(List.of(
+               .thenReturn(new PageResponse<>(List.of(
                    new UserSummary("id-a", "alice", true, 1700000000000L, List.of("player")),
                    new UserSummary("id-b", "bob", false, 1700000001000L, List.of("admin", "player"))
-               ));
+               ), 0, 20, 2L));
 
         given()
             .when().get("/admin/users")
             .then().statusCode(200)
-                .body("$", hasSize(2))
-                .body("[0].id", is("id-a"))
-                .body("[0].username", is("alice"))
-                .body("[0].enabled", is(true))
-                .body("[0].createdTimestamp", is(1700000000000L))
-                .body("[0].roles", equalTo(List.of("player")))
-                .body("[1].roles", equalTo(List.of("admin", "player")));
+                .body("first", is(0))
+                .body("max", is(20))
+                .body("total", equalTo(2))
+                .body("items", hasSize(2))
+                .body("items[0].id", is("id-a"))
+                .body("items[0].username", is("alice"))
+                .body("items[0].enabled", is(true))
+                .body("items[0].createdTimestamp", is(1700000000000L))
+                .body("items[0].roles", equalTo(List.of("player")))
+                .body("items[1].roles", equalTo(List.of("admin", "player")));
     }
 
     @Test
     @TestSecurity(user = "admin", roles = "admin")
     void listUsers_passesPaginationParams() {
-        Mockito.when(keycloakAdminService.listUsers(40, 10)).thenReturn(List.of());
+        Mockito.when(keycloakAdminService.listUsers(40, 10))
+               .thenReturn(new PageResponse<>(List.of(), 40, 10, 100L));
 
         given()
             .queryParam("first", 40)
             .queryParam("max", 10)
             .when().get("/admin/users")
-            .then().statusCode(200);
+            .then().statusCode(200)
+                .body("first", is(40))
+                .body("max", is(10))
+                .body("total", equalTo(100))
+                .body("items", hasSize(0));
 
         Mockito.verify(keycloakAdminService).listUsers(40, 10);
     }

@@ -8,6 +8,7 @@ import io.quarkus.test.security.TestSecurity;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import util.PageResponse;
 import util.PlayerConflictException;
 
 import java.util.List;
@@ -159,18 +160,64 @@ class GameResourceTest {
 
     @Test
     void getAll_returnsListOfGames() {
-        Mockito.when(gameRegistry.findAll()).thenReturn(List.of(
+        Mockito.when(gameRegistry.findPage(0, 20)).thenReturn(new PageResponse<>(List.of(
                 new GameDTO("a", GameEngine.GameState.STARTED.toString(), null),
                 new GameDTO("b", GameEngine.GameState.NOT_STARTED.toString(), null)
-        ));
+        ), 0, 20, 2L));
 
         given()
         .when()
             .get("/game")
         .then()
             .statusCode(200)
-            .body("$", hasSize(2))
-            .body("gameId", contains("a", "b"))
-            .body("[0].gameState", equalTo("STARTED"));
+            .body("first", is(0))
+            .body("max", is(20))
+            .body("total", equalTo(2))
+            .body("items", hasSize(2))
+            .body("items.gameId", contains("a", "b"))
+            .body("items[0].gameState", equalTo("STARTED"));
+    }
+
+    @Test
+    void getAll_passesPaginationParams() {
+        Mockito.when(gameRegistry.findPage(5, 10))
+                .thenReturn(new PageResponse<>(List.of(), 5, 10, 7L));
+
+        given()
+            .queryParam("first", 5)
+            .queryParam("max", 10)
+        .when()
+            .get("/game")
+        .then()
+            .statusCode(200)
+            .body("first", is(5))
+            .body("max", is(10))
+            .body("total", equalTo(7));
+
+        Mockito.verify(gameRegistry).findPage(5, 10);
+    }
+
+    @Test
+    void getAll_returns400_whenMaxAbove100() {
+        given()
+            .queryParam("max", 101)
+        .when()
+            .get("/game")
+        .then()
+            .statusCode(400);
+
+        Mockito.verify(gameRegistry, Mockito.never()).findPage(Mockito.anyInt(), Mockito.anyInt());
+    }
+
+    @Test
+    void getAll_returns400_whenFirstNegative() {
+        given()
+            .queryParam("first", -1)
+        .when()
+            .get("/game")
+        .then()
+            .statusCode(400);
+
+        Mockito.verify(gameRegistry, Mockito.never()).findPage(Mockito.anyInt(), Mockito.anyInt());
     }
 }

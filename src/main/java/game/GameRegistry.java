@@ -4,8 +4,11 @@ import card.CardDTO;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Event;
 import lombok.RequiredArgsConstructor;
+import util.PageResponse;
 
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -30,10 +33,25 @@ public class GameRegistry {
         return new GameDTO(id, engine.getGameState().toString(), engine.getCardDTOs());
     }
 
+    /** Returns every registered game without pagination. Used by the lobby WebSocket on open. */
     public List<GameDTO> findAll() {
         return games.entrySet().stream()
                 .map(e -> new GameDTO(e.getKey(), e.getValue().getGameState().toString(), null))
                 .toList();
+    }
+
+    /** Returns a page of games ordered by creation time (newest first), with gameId as tiebreaker. */
+    public PageResponse<GameDTO> findPage(int first, int max) {
+        List<GameDTO> items = games.entrySet().stream()
+                .sorted(Comparator
+                        .comparing((Map.Entry<String, GameEngine> e) -> e.getValue().getCreatedAt())
+                        .reversed()
+                        .thenComparing(Map.Entry::getKey))
+                .skip(first)
+                .limit(max)
+                .map(e -> new GameDTO(e.getKey(), e.getValue().getGameState().toString(), null))
+                .toList();
+        return new PageResponse<>(items, first, max, games.size());
     }
 
     /** Returns the game for the given id. Throws {@link IllegalArgumentException} if not found. */

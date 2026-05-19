@@ -6,10 +6,13 @@ import image.ImageService;
 import io.quarkus.security.Authenticated;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import lombok.RequiredArgsConstructor;
+import util.PageResponse;
 
 import java.util.List;
 
@@ -21,12 +24,14 @@ public class PackResource {
     private final CardService cardService;
     private final ImageService imageService;
 
-    /** Returns all available packs. */
+    /** Returns a page of available packs, newest first. */
     @GET
     @Authenticated
     @Produces(MediaType.APPLICATION_JSON)
-    public List<PackDTO> getAll() {
-        return packService.getAllPacks();
+    public PageResponse<PackDTO> getAll(
+            @QueryParam("first") @DefaultValue("0") @Min(0) int first,
+            @QueryParam("max") @DefaultValue("20") @Min(0) @Max(100) int max) {
+        return packService.getPacksPage(first, max);
     }
 
     /** Returns a single pack by id. Returns 404 if not found. */
@@ -38,13 +43,16 @@ public class PackResource {
         return packService.getPack(packId);
     }
 
-    /** Returns all cards belonging to the given pack. */
+    /** Returns a page of cards belonging to the given pack, newest first. */
     @GET
     @Authenticated
     @Path("/{id}/cards")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<CardDTO> getCardsByPack(@PathParam("id") String packId) {
-        return cardService.getCardsFromPack(packId);
+    public PageResponse<CardDTO> getCardsByPack(
+            @PathParam("id") String packId,
+            @QueryParam("first") @DefaultValue("0") @Min(0) int first,
+            @QueryParam("max") @DefaultValue("20") @Min(0) @Max(100) int max) {
+        return cardService.getCardsFromPackPage(packId, first, max);
     }
 
     /** Creates a new pack with the given name. */

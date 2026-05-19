@@ -86,8 +86,8 @@ class KeycloakAdminServiceIntegrationTest {
         UserCreateResponse created = service.createUser(username, "admin");
         createdIds.add(created.id());
 
-        List<UserSummary> page = service.listUsers(0, 100);
-        UserSummary found = page.stream()
+        util.PageResponse<UserSummary> page = service.listUsers(0, 100);
+        UserSummary found = page.items().stream()
                 .filter(u -> username.equals(u.username()))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("user not in listing"));
@@ -98,9 +98,12 @@ class KeycloakAdminServiceIntegrationTest {
         assertTrue(found.roles().contains("admin"));
         assertTrue(found.roles().stream().noneMatch(r -> r.startsWith("default-roles-")),
                 "default-roles-* should be filtered out, got " + found.roles());
+        assertTrue(page.total() >= 1, "total should reflect realm user count");
 
-        List<UserSummary> small = service.listUsers(0, 1);
-        assertEquals(1, small.size());
+        util.PageResponse<UserSummary> small = service.listUsers(0, 1);
+        assertEquals(1, small.items().size());
+        assertEquals(0, small.first());
+        assertEquals(1, small.max());
     }
 
     @Test

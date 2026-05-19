@@ -20,8 +20,8 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import util.PageResponse;
 
-import java.util.List;
 import java.util.Objects;
 
 @Path("/admin")
@@ -50,7 +50,7 @@ public class AdminResource {
     @GET
     @Path("/users")
     @Produces(MediaType.APPLICATION_JSON)
-    public List<UserSummary> listUsers(
+    public PageResponse<UserSummary> listUsers(
             @QueryParam("first") @DefaultValue("0") @Min(0) int first,
             @QueryParam("max") @DefaultValue("20") @Min(0) @Max(100) int max) {
         return keycloakAdminService.listUsers(first, max);

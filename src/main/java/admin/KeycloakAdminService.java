@@ -9,6 +9,7 @@ import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import util.PageResponse;
 import util.UserConflictException;
 
 import java.util.List;
@@ -66,9 +67,9 @@ public class KeycloakAdminService {
         }
     }
 
-    public List<UserSummary> listUsers(int first, int max) {
+    public PageResponse<UserSummary> listUsers(int first, int max) {
         RealmResource realmResource = keycloak.realm(REALM);
-        return realmResource.users().list(first, max).stream()
+        List<UserSummary> items = realmResource.users().list(first, max).stream()
                 .map(u -> {
                     List<String> roles = realmResource.users().get(u.getId()).roles().realmLevel().listAll().stream()
                             .map(r -> r.getName())
@@ -83,6 +84,8 @@ public class KeycloakAdminService {
                     );
                 })
                 .toList();
+        long total = realmResource.users().count();
+        return new PageResponse<>(items, first, max, total);
     }
 
     public String resetPassword(String userId) {

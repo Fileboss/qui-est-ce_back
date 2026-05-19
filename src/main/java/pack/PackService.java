@@ -6,6 +6,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import util.PageResponse;
 
 import java.util.List;
 
@@ -25,9 +26,12 @@ public class PackService {
         return toDTO(pack);
     }
 
-    /** Returns all packs as DTOs. */
-    public List<PackDTO> getAllPacks() {
-        return packRepository.listAll().stream().map(PackService::toDTO).toList();
+    /** Returns a page of packs as DTOs, newest first. */
+    public PageResponse<PackDTO> getPacksPage(int first, int max) {
+        List<PackDTO> items = packRepository.findPage(first, max).stream()
+                .map(PackService::toDTO)
+                .toList();
+        return new PageResponse<>(items, first, max, packRepository.count());
     }
 
     /** Returns the pack with the given id, or throws {@link NotFoundException} (HTTP 404). */

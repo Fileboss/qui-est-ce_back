@@ -15,4 +15,16 @@ public class CardRepository implements PanacheRepository<Card> {
     public List<Card> listByPackId(long packId) {
         return list(PACK_ID, packId);
     }
+
+    /** Returns a page of cards for the given pack, ordered by creation time (newest first). */
+    public List<Card> findPageByPackId(long packId, int first, int max) {
+        return find("pack.id = ?1 ORDER BY createdAt DESC, id DESC", packId)
+                .range(first, first + max - 1)
+                .list();
+    }
+
+    /** Total card count for the given pack. */
+    public long countByPackId(long packId) {
+        return count(PACK_ID, packId);
+    }
 }

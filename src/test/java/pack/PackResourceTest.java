@@ -12,9 +12,11 @@ import java.util.Map;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -152,11 +154,66 @@ class PackResourceTest {
             .extract().jsonPath().getString("id");
 
         given()
+            .queryParam("max", 100)
             .when().get("/pack")
             .then()
                 .statusCode(200)
-                .body("id", hasItems(firstId, secondId))
-                .body("name", hasItems("ListMarker A", "ListMarker B"));
+                .body("first", is(0))
+                .body("max", is(100))
+                .body("total", greaterThanOrEqualTo(2))
+                .body("items.id", hasItems(firstId, secondId))
+                .body("items.name", hasItems("ListMarker A", "ListMarker B"));
+    }
+
+    @Test
+    void getAll_respectsMaxAndExposesTotal() {
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Slice A"))
+            .when().post("/pack/create").then().statusCode(200);
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Slice B"))
+            .when().post("/pack/create").then().statusCode(200);
+        given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Slice C"))
+            .when().post("/pack/create").then().statusCode(200);
+
+        given()
+            .queryParam("first", 0)
+            .queryParam("max", 2)
+            .when().get("/pack")
+            .then()
+                .statusCode(200)
+                .body("first", is(0))
+                .body("max", is(2))
+                .body("items.size()", lessThanOrEqualTo(2))
+                .body("total", greaterThanOrEqualTo(3));
+    }
+
+    @Test
+    void getAll_returns400_whenMaxAbove100() {
+        given()
+            .queryParam("max", 101)
+            .when().get("/pack")
+            .then().statusCode(400);
+    }
+
+    @Test
+    void getAll_returns400_whenFirstNegative() {
+        given()
+            .queryParam("first", -1)
+            .when().get("/pack")
+            .then().statusCode(400);
+    }
+
+    @Test
+    void getAll_returns400_whenMaxNegative() {
+        given()
+            .queryParam("max", -1)
+            .when().get("/pack")
+            .then().statusCode(400);
     }
 
     @Test
@@ -183,11 +240,72 @@ class PackResourceTest {
             .when().get("/pack/" + packId + "/cards")
             .then()
                 .statusCode(200)
-                .body("$", hasSize(1))
-                .body("[0].id", notNullValue())
-                .body("[0].name", is("Solo card"))
-                .body("[0].imageUrl", is("http://fake-bucket/cards-key"))
-                .body("[0].packId", is(packId));
+                .body("first", is(0))
+                .body("max", is(20))
+                .body("total", is(1))
+                .body("items", hasSize(1))
+                .body("items[0].id", notNullValue())
+                .body("items[0].name", is("Solo card"))
+                .body("items[0].imageUrl", is("http://fake-bucket/cards-key"))
+                .body("items[0].packId", is(packId));
+    }
+
+    @Test
+    void getCardsByPack_paginates() {
+        Mockito.when(imageService.uploadImage(any(), anyString())).thenReturn("page-key");
+        Mockito.when(imageService.getImageUrl("page-key")).thenReturn("http://fake-bucket/page-key");
+
+        String packId = given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Paged cards pack"))
+            .when().post("/pack/create")
+            .then().statusCode(200)
+            .extract().jsonPath().getString("id");
+
+        for (int i = 0; i < 3; i++) {
+            given()
+                .contentType("multipart/form-data")
+                .multiPart("name", "Card " + i)
+                .multiPart("packId", packId)
+                .multiPart("image", "c.png", PNG, "image/png")
+                .when().post("/card/create")
+                .then().statusCode(200);
+        }
+
+        given()
+            .queryParam("first", 0)
+            .queryParam("max", 2)
+            .when().get("/pack/" + packId + "/cards")
+            .then()
+                .statusCode(200)
+                .body("first", is(0))
+                .body("max", is(2))
+                .body("total", is(3))
+                .body("items.size()", lessThanOrEqualTo(2));
+
+        given()
+            .queryParam("first", 2)
+            .queryParam("max", 2)
+            .when().get("/pack/" + packId + "/cards")
+            .then()
+                .statusCode(200)
+                .body("total", is(3))
+                .body("items.size()", is(1));
+    }
+
+    @Test
+    void getCardsByPack_returns400_whenMaxAbove100() {
+        String packId = given()
+            .contentType(ContentType.JSON)
+            .body(Map.of("packName", "Validation pack"))
+            .when().post("/pack/create")
+            .then().statusCode(200)
+            .extract().jsonPath().getString("id");
+
+        given()
+            .queryParam("max", 101)
+            .when().get("/pack/" + packId + "/cards")
+            .then().statusCode(400);
     }
 
     @Test

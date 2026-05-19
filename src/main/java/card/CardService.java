@@ -5,6 +5,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import pack.Pack;
 import pack.PackService;
+import util.PageResponse;
 
 import java.util.List;
 import java.util.Optional;
@@ -17,11 +18,20 @@ public class CardService {
     private final CardRepository cardRepository;
     private final PackService packService;
 
-    /** Returns all cards belonging to the given pack, mapped to DTOs. */
+    /** Returns all cards belonging to the given pack, mapped to DTOs. Used by game creation; not paginated. */
     public List<CardDTO> getCardsFromPack(String packId) {
         return cardRepository.listByPackId(Long.parseLong(packId)).stream()
                 .map(CardService::toDTO)
                 .toList();
+    }
+
+    /** Returns a page of cards belonging to the given pack, newest first. */
+    public PageResponse<CardDTO> getCardsFromPackPage(String packId, int first, int max) {
+        long pid = Long.parseLong(packId);
+        List<CardDTO> items = cardRepository.findPageByPackId(pid, first, max).stream()
+                .map(CardService::toDTO)
+                .toList();
+        return new PageResponse<>(items, first, max, cardRepository.countByPackId(pid));
     }
 
     /** Persists a new card under the given pack. Returns 404 if pack not found. */
