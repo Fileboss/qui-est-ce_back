@@ -1,7 +1,6 @@
 package admin;
 
 import jakarta.annotation.security.RolesAllowed;
-import jakarta.inject.Inject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -16,6 +15,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import lombok.RequiredArgsConstructor;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -26,13 +26,11 @@ import java.util.Objects;
 
 @Path("/admin")
 @RolesAllowed("admin")
+@RequiredArgsConstructor
 public class AdminResource {
 
-    @Inject
-    KeycloakAdminService keycloakAdminService;
-
-    @Inject
-    JsonWebToken jwt;
+    private final KeycloakAdminService keycloakAdminService;
+    private final JsonWebToken jwt;
 
     @POST
     @Path("/users")
