@@ -29,7 +29,7 @@ public class GameRegistry {
         GameEngine engine = new GameEngine();
         engine.create(cards);
         games.put(id, engine);
-        gameUpdateEvent.fire(new GameUpdateEvent(id, "GAME_CREATED", engine.getGameState().toString(), null, null));
+        gameUpdateEvent.fire(new GameUpdateEvent(id, "GAME_CREATED", engine.getGameState().toString(), null, null, null, null, null));
         return new GameDTO(id, engine.getGameState().toString(), engine.getCardDTOs());
     }
 
@@ -72,12 +72,12 @@ public class GameRegistry {
     public void removeGame(String gameId) {
         GameEngine engine = games.get(gameId);
         if (engine == null) {
-            gameUpdateEvent.fire(new GameUpdateEvent(gameId, "DELETED", null, null, null));
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, "DELETED", null, null, null, null, null, null));
             return;
         }
         synchronized (engine) {
             games.remove(gameId);
-            gameUpdateEvent.fire(new GameUpdateEvent(gameId, "DELETED", null, null, null));
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, "DELETED", null, null, null, null, null, null));
         }
     }
 
@@ -86,7 +86,7 @@ public class GameRegistry {
         synchronized (engine) {
             ensureStillRegistered(gameId);
             engine.reset();
-            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null, null, null, null));
         }
     }
 
@@ -95,7 +95,7 @@ public class GameRegistry {
         synchronized (engine) {
             ensureStillRegistered(gameId);
             engine.start();
-            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null));
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, null, null, null, null));
         }
     }
 
@@ -104,7 +104,7 @@ public class GameRegistry {
         synchronized (engine) {
             ensureStillRegistered(gameId);
             CardDTO card = engine.join(sub);
-            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, engine.getPlayersJoined()));
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), null, engine.getPlayersJoined(), null, null, null));
             return card;
         }
     }
@@ -114,7 +114,7 @@ public class GameRegistry {
         synchronized (engine) {
             ensureStillRegistered(gameId);
             boolean correct = engine.guess(sub, cardId);
-            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), correct, null));
+            gameUpdateEvent.fire(new GameUpdateEvent(gameId, STATE_CHANGE, engine.getGameState().toString(), correct, null, null, null, null));
             return correct;
         }
     }

@@ -89,6 +89,11 @@ public class GameEngine {
         return count;
     }
 
+    /** True if the given sub matches either player slot. */
+    public boolean isParticipant(String sub) {
+        return sub != null && (sub.equals(player1Sub) || sub.equals(player2Sub));
+    }
+
     /** Transitions the game from PREPARING to STARTED. Both player slots must be occupied. */
     public synchronized void start() {
         if (gameState != GameState.PREPARING) {

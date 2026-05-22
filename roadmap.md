@@ -192,16 +192,15 @@ Several list endpoints currently return everything in one shot. Cheap today, but
 
 ---
 
-## 14. In-game live text chat
+## 14. In-game live text chat ✅
 
 Players in a game room can send messages to each other in real time. Nothing is persisted — messages exist only as long as the WebSocket session lives.
 
-- Reuse the existing `/ws/game/{gameId}` channel. Add a new inbound message type `CHAT_MESSAGE` with a `text` field (max ~500 chars, validated server-side).
-- `GameWebSocket.@OnTextMessage` already receives raw text — parse the type field and dispatch accordingly. No new endpoint needed.
-- Broadcast the message to all connections on that game path with a new outbound event type `CHAT_MESSAGE` containing `senderSub` (or display name from the JWT `preferred_username` claim) and `text`.
-- Reject messages from unauthenticated or non-participant connections (same guard as guess/reset).
-- No storage — on disconnect the history is gone.
-- Tests: a message sent by player 1 is received by player 2; a non-participant connection does not receive game-private chat; oversized messages are rejected with a WS close frame or error event.
+- Reuses the existing `/ws/game/{gameId}` channel. `GameWebSocket.@OnTextMessage` parses `{"type":"CHAT_MESSAGE","text":"…"}`, validates (participant, non-blank, ≤ 500 chars), and fires a CDI event broadcast via the existing `GameUpdateBroadcaster`. No new endpoint.
+- Outbound `GameUpdateEvent` gained three optional fields: `senderSub` (= principal name, i.e. `preferred_username` under default Quarkus OIDC), `senderName`, `text`. `@JsonInclude(NON_NULL)` keeps non-chat payloads unchanged on the wire.
+- Invalid inbound frames return `CHAT_ERROR` to the offending connection only (`connection.sendTextAndAwait`), bypassing the broadcaster. Reasons: `not a participant`, `text must not be blank`, `text exceeds 500 chars`, `malformed message`, `unsupported message type`, `game not found`.
+- No storage — history dies with the session.
+- Tests in `GameWebSocketChatTest` (6 cases): happy-path broadcast, non-participant, oversized, blank, malformed JSON + recovery, unknown type. Dev realm gains `directAccessGrantsEnabled: true` on `qui-est-ce-back` so the test harness can grab user JWTs via password grant (prod realm unchanged, explicitly `false`).
 
 **Done when:** two players in the same game room can exchange text messages in real time, and nothing is written to the database.
 

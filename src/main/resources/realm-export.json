@@ -20,6 +20,7 @@
       "secret": "dev-secret",
       "serviceAccountsEnabled": true,
       "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
       "redirectUris": ["*"],
       "webOrigins": ["*"]
     },
